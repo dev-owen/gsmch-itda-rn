@@ -1,0 +1,59 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+example
+
+# generated native folders
+/ios
+/android
+
+# Local preview bundles
+dist-web/
+
+dist-native/
+
+# Licensed font files stay local unless redistribution is explicitly permitted
+assets/fonts/tiempos/
+
+# Flaticon assets are generated locally from the pinned official npm package.
+assets/icons/flaticon/regular-rounded.json
+assets/icons/flaticon/*.woff*
+assets/icons/flaticon/*.ttf
+assets/icons/flaticon/*.otf
+assets/icons/flaticon/*.eot
+assets/icons/flaticon/*.svg

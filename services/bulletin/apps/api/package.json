@@ -1,0 +1,28 @@
+{
+  "name": "@bulletin/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "XDG_CONFIG_HOME=../../.wrangler-config WRANGLER_SEND_METRICS=false wrangler dev",
+    "build": "XDG_CONFIG_HOME=../../.wrangler-config WRANGLER_SEND_METRICS=false WRANGLER_WRITE_LOGS=false wrangler deploy --dry-run --outdir dist",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc --noEmit false --outDir .test-dist && node --test tests/*.test.mjs",
+    "dev:itda": "XDG_CONFIG_HOME=../../.wrangler-config WRANGLER_SEND_METRICS=false wrangler dev --config wrangler.itda-local.jsonc --port 8787",
+    "build:itda": "XDG_CONFIG_HOME=../../.wrangler-config WRANGLER_SEND_METRICS=false WRANGLER_WRITE_LOGS=false wrangler deploy --config wrangler.itda.example.jsonc --dry-run --outdir dist-itda",
+    "test:compile": "tsc --noEmit false --outDir .test-dist"
+  },
+  "dependencies": {
+    "@better-auth/expo": "1.7.12",
+    "better-auth": "1.7.12",
+    "hono": "^4.0.0",
+    "pg": "^8.16.3",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261024.1",
+    "@types/pg": "^8.15.0",
+    "auth": "^1.7.12",
+    "typescript": "^5.9.0",
+    "wrangler": "^4.0.0"
+  }
+}

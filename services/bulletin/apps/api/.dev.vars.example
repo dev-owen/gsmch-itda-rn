@@ -1,0 +1,9 @@
+# Local only. Use a LAN address for a physical device and register its OAuth redirects.
+DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/itda_local
+BETTER_AUTH_SECRET=replace-with-a-random-secret-at-least-32-characters
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+KAKAO_CLIENT_ID=
+KAKAO_CLIENT_SECRET=
+
+BULLETIN_SOURCE_ORIGIN=https://gsmch-youth-bulletin.gsmch-youth-dev.workers.dev

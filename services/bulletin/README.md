@@ -1,0 +1,200 @@
+# 선한목자 젊은이교회 모바일 주보
+
+React + Vite 공개·관리자 웹, Hono + Better Auth Workers API, PostgreSQL, Cloudflare R2로 구성한 모바일 주보 프로토타입입니다. 공개 주소 `/`는 현재 발행본을 보여 주고, `/archive`와 `/bulletins/YYYY-MM-DD`에서 지난 발행본을 볼 수 있습니다. 관리자 화면은 `/admin`입니다.
+
+## 구현 범위
+
+- 주보 표지(선택적 이미지), 예배 순서(순서명·선택 내용·담당자), 설교, 교우 소식(새가족·등반·결혼·군입대), 광고 최대 10개(제목·설명·세부 내용 여러 개·선택 링크), 고정 교회 안내
+- 광고 세부 내용의 ‘일정’ 타입: 종일·시각·시작/종료 날짜를 설정하면 발행된 광고의 일정이 공통 캘린더에 자동 반영됩니다. 여러 날·월을 넘는 기간을 지원하며 수정·삭제도 함께 반영됩니다. [일정 입력 안내](docs/advertisement-schedules.md)
+- 광고 링크는 버튼으로 표시하며 버튼 이름을 선택 입력할 수 있습니다. 이름을 비우면 ‘자세히 보기’를 표시하고, 광고에서 자동 반영된 캘린더 일정에도 같은 버튼 이름을 사용합니다.
+- 매주 공통 안내: 헌금(계좌 복사), 주일·화요중보기도와 노방전도, 새가족 등록, 비전, 선교 동역자, 섬기는 분들. 긴 명단은 항목별로 펼쳐 보며 관리자 교회 안내에서 한 번 수정하면 모든 주보에 반영됩니다.
+- 주보 초안 생성 시 이전 발행본의 **예배 순서명만** 복제
+- 저장과 발행 분리, 모바일 미리보기, 발행본 오탈자 수정
+- 발행 트랜잭션으로 최신 주보 포인터 변경, 비공개 초안과 관리자 API 권한 검사
+- 한 번 온라인에서 연 최신 주보 JSON과 대표 이미지를 저장하는 PWA
+- 현재·지난 주보와 지난 주보 목록은 기기 저장본을 즉시 표시한 뒤 백그라운드에서 갱신합니다. 공개 API는 Workers 인스턴스에서 최대 1분간 재사용하며, 관리자 저장·발행 후 캐시를 비웁니다.
+- 발행된 주보 상단의 QR 버튼으로 큰 QR 코드와 링크 복사 제공. QR과 복사한 링크는 해당 날짜의 `/bulletins/YYYY-MM-DD`로 연결되며, QR은 브라우저에서 생성해 오프라인 저장본에서도 표시됩니다.
+- 휴대폰·브라우저의 글자 크기 설정 연동: 상대 글자 크기와 늘어나는 레이아웃을 사용합니다. 지원 브라우저의 시스템 글자 배율과 iOS Safari의 Dynamic Type을 반영하며, 브라우저 확대와 두 손가락 확대도 허용합니다. 상단 설정 버튼에서 `− / +`로 기본 크기의 80~200%를 10% 단위로 조절하고 기본 크기로 되돌릴 수 있습니다. 선택은 기기에 저장되어 현재·지난 주보에 공통 적용됩니다. 물리 볼륨 버튼으로 글자를 조절하는 기능은 웹/PWA에서 지원하지 않습니다.
+- 읽기 설정의 글자 크기 조절 아래에서 다크 모드를 켜고 끌 수 있습니다. 처음에는 기기의 화면 모드를 따르며, 직접 선택한 모드는 기기에 저장되어 새로고침과 현재·지난 주보 이동 후에도 유지됩니다. 카드·교회 안내·달력·QR 안내 창까지 함께 전환됩니다.
+- 공개 화면 헤더에서 한국어·English·中文(간체)을 선택할 수 있습니다. 메뉴·안내·읽기 설정·QR·날짜/일정 표시를 전환하고 기기에 선택을 저장합니다. 관리자는 한국어만 입력하며 공개 화면의 주보·광고·교회 안내·지난 주보 제목은 Cloudflare Workers AI로 자동 번역합니다. 번역은 R2와 기기에 저장해 재사용하며, 변경된 한국어 문구만 새로 번역합니다. 이름·연락처·계좌·링크는 보존하고 번역 오류·한도 초과 시 원문과 다시 시도 버튼을 제공합니다. 관리자 화면은 한국어를 유지합니다. [자동 번역 운영 안내](docs/operations.md#9-콘텐츠-자동-번역)
+- 대표 이미지 자동 최적화: JPG·PNG·WebP 원본(최대 20MB, 5천만 화소)을 브라우저에서 비율을 유지해 긴 변 최대 1,920px·512KB 이하로 압축한 뒤 업로드합니다. WebP를 우선 사용하고 인코딩을 지원하지 않는 브라우저에서는 JPEG(투명 영역은 흰색)로 변환합니다. R2에는 최적화한 파일만 저장하며 API도 용량·해상도를 검사합니다. 기존에 저장된 이미지는 다시 업로드하면 적용됩니다.
+- 잇다 앱용 행사·회원·신청·출석 API와 느동수 가상 수련회 홈·전용 신청서. 방문자는 신청서를 작성할 수 있고 최종 등록에는 로그인이 필요합니다. [느동수 운영 안내](docs/itda-nehemiah-demo.md)
+
+PDF, 알림, 영상 업로드는 기획서의 후속 범위입니다.
+
+## 구조
+
+### 서비스 아키텍처
+
+```mermaid
+flowchart LR
+  visitor[방문자 / 관리자 브라우저<br/>React · PWA]
+  worker[Cloudflare Workers<br/>정적 웹 · Hono API · Better Auth]
+  hyperdrive[Cloudflare Hyperdrive<br/>연결 풀링]
+  postgres[(Neon PostgreSQL<br/>주보 · 인증 데이터)]
+  r2[(Cloudflare R2<br/>표지 이미지)]
+  google[Google OAuth]
+
+  visitor -->|웹 앱 다운로드 · API 요청| worker
+  worker -->|SQL| hyperdrive
+  hyperdrive --> postgres
+  worker -->|이미지 업로드 · 조회| r2
+  worker <-->|로그인 · 콜백| google
+```
+
+무료 배포에서는 Cloudflare Workers가 정적 웹과 Hono API를 같은 주소에서 제공합니다. API는 Hyperdrive를 통해 PostgreSQL에 연결하고, 주보 표지 이미지 파일은 R2에 저장합니다. 이미지 메타데이터와 주보 데이터는 PostgreSQL에 기록합니다. 인증은 Better Auth와 Google OAuth를 사용합니다.
+
+### 데이터베이스 ERD
+
+```mermaid
+erDiagram
+  bulletins ||--o{ worship_items : contains
+  bulletins ||--o{ promotions : contains
+  media_assets o|--o{ bulletins : cover
+  bulletins o|--o| site_settings : current_bulletin
+  user ||--o| admin_users : authorization
+
+  bulletins {
+    uuid id PK
+    date service_date UK
+    text theme
+    uuid cover_media_id FK
+    text sermon_title
+    text scripture
+    text preacher
+    text status
+    timestamptz published_at
+  }
+  worship_items {
+    uuid id PK
+    uuid bulletin_id FK
+    int position
+    text label
+    text assignee
+  }
+  promotions {
+    uuid id PK
+    uuid bulletin_id FK
+    int position
+    text title
+    text body
+    text url
+  }
+  media_assets {
+    uuid id PK
+    text object_key UK
+    text content_type
+    int size_bytes
+    text alt_text
+  }
+  site_info {
+    int id PK
+    text church_name
+    text worship_time
+    text gathering_time
+    text introduction
+    text vision
+    text address
+    text map_url
+  }
+  site_settings {
+    int id PK
+    uuid current_bulletin_id FK
+  }
+  admin_users {
+    text user_id PK
+    timestamptz granted_at
+  }
+  user {
+    text id PK
+    text name
+    text email UK
+  }
+```
+
+`user`는 Better Auth가 생성하는 사용자 테이블을 가리킵니다. `admin_users.user_id`는 애플리케이션에서 `user.id`와 연결해 권한을 검사하지만, `schema.sql`에는 DB 외래키 제약이 선언되어 있지 않습니다. Better Auth의 세션·계정·검증 테이블은 `npx auth migrate`로 별도 생성됩니다. `site_info`와 `site_settings`는 각각 단일 행(`id = 1`)을 유지합니다. 주보 삭제 시 예배 순서와 홍보 항목은 함께 삭제됩니다.
+
+### 무료 플랜 용량 참고
+
+2026-10-25 기준 공식 문서의 대표 무료 한도입니다. 한도와 과금 정책은 바뀔 수 있으므로 실제 배포 전에 각 제공자의 페이지를 다시 확인하세요.
+
+| 서비스 | 무료 포함량 | 이 프로젝트에서의 용도 |
+| --- | --- | --- |
+| Cloudflare R2 Standard | 저장 10 GB-month/월, Class A 100만 건/월, Class B 1,000만 건/월, 인터넷 송신 무료 | 주보 이미지 파일. 저장량 초과분은 종량 과금 |
+| Cloudflare Workers Free | 요청 10만 건/일, CPU 10 ms/호출 | Hono API 호출 한도 |
+| Cloudflare Workers 정적 자산 | 정적 파일 요청 무료 | React 정적 웹 앱 배포 |
+| Neon Free | PostgreSQL 저장 1 GB/프로젝트, 프로젝트 100개까지, 컴퓨트 100 CU-hours/프로젝트/월, 네트워크 송신 5 GB/프로젝트/월 | PostgreSQL 데이터베이스. DB 저장 용량과 컴퓨트/송신 한도는 별도 |
+
+Cloudflare R2는 월별 저장 평균(GB-month)을 기준으로 산정하며, 10 GB-month 초과 시 저장 비용이 발생할 수 있습니다. Workers 무료 요청량은 API 호출에 적용되고 정적 자산 요청과는 별도입니다. Neon의 무료 한도는 공식 [요금 변경 안내](https://neon.com/blog/neon-free-plan-1-gb-per-project)와 [Free plan FAQ](https://neon.com/docs/introduction/plans)에 따릅니다. 그 밖의 Cloudflare 세부 한도는 [R2 가격](https://developers.cloudflare.com/r2/pricing/), [Workers 가격](https://developers.cloudflare.com/workers/platform/pricing/), [정적 자산 요금](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/)을 참고하세요.
+
+## 로컬 구조
+
+```text
+apps/web  React + Vite · Cloudflare Workers 정적 자산 또는 Pages
+apps/api  Hono + Better Auth · Cloudflare Workers
+apps/api/db/schema.sql  서비스 데이터 스키마
+```
+
+## 로컬 준비
+
+Node.js 22 이상과 PostgreSQL이 필요합니다.
+
+1. `npm install`
+2. PostgreSQL 데이터베이스를 만들고 `DATABASE_URL` 환경 변수를 설정합니다.
+3. `apps/api/.dev.vars.example`을 `apps/api/.dev.vars`로, `apps/web/.env.example`을 `apps/web/.env.local`로 복사합니다. API 파일에 Better Auth 비밀값과 Google OAuth 키를 채웁니다. 비밀값은 32자 이상 난수로 생성합니다.
+4. Better Auth 인증 테이블을 생성한 뒤 서비스 스키마를 적용합니다.
+
+   ```sh
+   cd apps/api
+   export DATABASE_URL='postgres://...'
+   export BETTER_AUTH_SECRET='...'
+   npx auth migrate --config ./auth.config.ts --yes
+   psql "$DATABASE_URL" -f db/schema.sql
+   psql "$DATABASE_URL" -f db/event-schema.sql
+   psql "$DATABASE_URL" -f db/account-schema.sql
+   psql "$DATABASE_URL" -f db/event-sync-schema.sql
+   psql "$DATABASE_URL" -f db/retreat-schema.sql
+   ```
+
+5. `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE`에 같은 `DATABASE_URL`을 설정합니다. `wrangler.jsonc`의 Hyperdrive `id`는 배포 전 실제 ID로 바꿉니다.
+6. `npm run dev:api`와 `npm run dev:web`을 각각 실행합니다. 웹은 `http://localhost:5173`, API는 `http://localhost:8787`입니다.
+
+잇다 전용 로컬 환경은 서비스 루트의 `npm run setup:itda`와 `npm run dev:itda`로 준비할 수 있습니다. 이 로컬 준비 명령에는 느동수 가상 행사 seed가 포함됩니다. 운영에는 `retreat-schema.sql` 스키마만 적용하고 `retreat-demo.sql`은 적용하지 않습니다. [준비·API·개인정보 처리](docs/itda-nehemiah-demo.md)
+
+Google OAuth 리디렉션 URI는 로컬에서 `http://localhost:8787/api/auth/callback/google`, 무료 운영 구성에서 `https://gsmch-youth-bulletin.gsmch-youth-dev.workers.dev/api/auth/callback/google`로 등록합니다. 별도 도메인을 쓰는 경우에는 해당 API 주소를 등록합니다. 관리자 계정으로 한 번 로그인한 뒤 DB 관리자가 해당 계정을 승인합니다.
+
+```sh
+cd apps/api
+psql "$DATABASE_URL" -v admin_email='관리자 이메일' -f db/grant-admin.sql
+```
+
+잇다의 `app_users`에 이미 생성된 계정은 해당 행의 `role`도 `admin`으로 변경하고 `version`을 증가시켜야 합니다. 승인을 회수할 때는 `admin_users`에서 해당 계정을 삭제하고 `app_users.role`을 `user`로 바꾸며 `version`을 증가시킵니다. 관리자 화면에서는 권한을 부여할 수 없습니다.
+
+## CI와 테스트
+
+GitHub Actions는 Pull Request, `main` 브랜치 푸시, 수동 실행에서 Node.js 22로 의존성을 설치하고 타입 검사, 테스트, 웹·API 빌드를 실행합니다. 같은 검증은 로컬에서 다음 명령으로 실행할 수 있습니다.
+
+```sh
+npm run ci
+```
+
+API 테스트는 `apps/api/tests`에 추가합니다. 입력 검증 외에 행사 신청·출석·계정 통합·동기화·수련회 프로필 잠금과 개인정보 보호를 검증합니다. 실제 DB 테스트는 `ACCOUNT_TEST_DATABASE_URL`·`EVENT_TEST_DATABASE_URL`을 설정해 실행합니다. Cloudflare 무료 배포에는 OAuth 앱과 Worker 비밀값 설정이 필요합니다.
+
+## 배포 설정
+
+현재 계정의 무료 구성은 [무료 배포 안내](docs/free-deployment.md)를 따릅니다. `deployment/config.free.example.json`에 확인된 Workers 주소, Hyperdrive ID, R2 버킷 이름이 들어 있습니다. 이 파일을 `deployment/config.free.local.json`으로 복사한 뒤 `npm run prepare:free`와 `npm run build:free`로 배포 설정을 검증합니다. 로컬 설정과 생성된 Wrangler 파일은 Git에 포함되지 않습니다.
+
+나중에 별도 도메인과 Pages를 사용하려면 [운영 배포와 점검](docs/operations.md)에 따라 `deployment/config.example.json`을 채우고 `npm run prepare:production`을 실행합니다.
+
+운영 자격 증명이 없어도 `npm run build`로 웹과 API 배포 산출물을 확인할 수 있습니다. 실제 계정과 기기에서 확인할 항목은 [운영 문서](docs/operations.md)에, 공식 웹사이트에서 찾은 교회 안내 후보는 [교회 안내 검토 자료](docs/site-info-review.md)에 정리했습니다.
+
+## API
+
+공개 API는 `/v1/health`, `/v1/bulletins/current`, `/v1/bulletins`, `/v1/bulletins/:date`, 공개 행사 조회와 `/v1/retreats/nehemiah-winter`입니다. 신청·본인 정보는 로그인이 필요합니다. 관리자 API는 `/v1/admin/*`이고 Better Auth 세션과 `app_users.role`을 검사하며 기존 `admin_users`는 초기 관리자 등록에 사용합니다. 느동수의 전용 신청·프로필 처리 API는 [운영 안내](docs/itda-nehemiah-demo.md#이용-흐름과-api)를 참고하세요. 오류는 `{ "code": "...", "message": "..." }` 형태로 반환합니다. 공개 주보 GET 응답은 Workers 인스턴스별로 최대 60초간 캐시합니다. 관리자 저장·발행 성공 시 해당 인스턴스의 캐시와 수정한 브라우저의 저장본을 비우며, 다른 인스턴스의 캐시는 최대 60초 뒤 만료됩니다. 수정한 브라우저는 60초간 서버 캐시를 우회합니다. 관리자·인증·헬스 체크·오류 응답은 캐시하지 않습니다. 자세한 정책과 확인 방법은 [운영 문서](docs/operations.md#8-주보-데이터-캐시)를 참고하세요.
+
+## 참고 문서
+
+- [모바일 주보 기획서](docs/gsmch-youth-bulletin-plan.md)
+- [기술 설계 초안](docs/gsmch-youth-bulletin-technical-design-draft.md)
+
+잇다 앱의 주간 주보 동기화·독립 행사 관리는 [잇다 행사 동기화](docs/itda-event-sync.md)에 설명되어 있습니다. 원본 주보의 배포 설정과 잇다 Worker 설정을 구분합니다.

@@ -1,0 +1,18 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "itda-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "triggers": { "crons": ["0 0 * * MON"] },
+  "vars": {
+    "WEB_ORIGIN": "https://itda.example.org",
+    "BETTER_AUTH_URL": "https://api.itda.example.org",
+    "PUBLIC_MEDIA_BASE_URL": "https://api.itda.example.org/v1/media",
+    "MOBILE_APP_ORIGIN": "itda://",
+    "BULLETIN_SOURCE_ORIGIN": "https://gsmch-youth-bulletin.gsmch-youth-dev.workers.dev"
+  },
+  "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "REPLACE_WITH_ITDA_HYPERDRIVE_ID" }],
+  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "itda-media" }],
+  "observability": { "enabled": true }
+}
