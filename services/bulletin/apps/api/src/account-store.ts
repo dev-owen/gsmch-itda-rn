@@ -277,6 +277,11 @@ export async function unlinkLogin(pool: Pool, actor: AppMember, accountId: strin
     if (!removed) throw new AccountError(404, 'LOGIN_METHOD_NOT_FOUND', '연결된 로그인 수단을 찾을 수 없습니다.');
     const remaining = snapshot.accounts.filter((account) => account.id !== accountId);
     if (!remaining.length) throw new AccountError(409, 'LAST_LOGIN_METHOD', '마지막 로그인 수단은 해제할 수 없습니다.');
+    const requiredProvider = user.role === 'admin' ? 'google' : 'kakao';
+    if (removed.providerId === requiredProvider && !remaining.some((account) => account.providerId === requiredProvider)) {
+      throw new AccountError(409, 'REQUIRED_LOGIN_METHOD', user.role === 'admin'
+        ? '관리자 로그인을 위해 Google 연결을 유지해 주세요.' : '앱 로그인을 위해 카카오 연결을 유지해 주세요.');
+    }
     if (proof.provider === removed.providerId || !remaining.some((account) => account.providerId === proof.provider)) {
       throw new AccountError(428, 'REMAINING_METHOD_PROOF_REQUIRED', '남겨 둘 로그인 수단으로 다시 로그인한 후 해제해 주세요.');
     }

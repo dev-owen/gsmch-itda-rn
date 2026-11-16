@@ -19,7 +19,14 @@ export async function request<T>(path: string, options: RequestInit & { client?:
   catch { throw new ApiError('NETWORK_ERROR', '연결을 확인하고 다시 시도해 주세요. 처리 중 끊겼다면 내 신청에서 결과를 먼저 확인해 주세요.'); }
   finally { clearTimeout(timeout); }
   const payload = await response.json().catch(() => null);
-  if (!response.ok) throw new ApiError(payload?.code || 'REQUEST_FAILED', payload?.message || '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.', response.status);
+  if (!response.ok) {
+    // Refresh the app identity after a rejected primary session. The identity
+    // lookup itself must not notify again, or an expired cookie would loop.
+    if (client === authClient && path !== '/v1/me' && (response.status === 401 || payload?.code === 'KAKAO_LOGIN_REQUIRED')) {
+      authClient.$store.notify('$sessionSignal');
+    }
+    throw new ApiError(payload?.code || 'REQUEST_FAILED', payload?.message || '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.', response.status);
+  }
   if (!payload) throw new ApiError('INVALID_RESPONSE', '응답을 확인할 수 없습니다. 다시 시도해 주세요.', response.status);
   return payload as T;
 }

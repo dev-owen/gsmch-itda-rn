@@ -161,14 +161,14 @@ Node.js 22 이상과 PostgreSQL이 필요합니다.
 
 잇다 전용 로컬 환경은 서비스 루트의 `npm run setup:itda`와 `npm run dev:itda`로 준비할 수 있습니다. 이 로컬 준비 명령에는 느동수 가상 행사 seed가 포함됩니다. 운영에는 `retreat-schema.sql` 스키마만 적용하고 `retreat-demo.sql`은 적용하지 않습니다. [준비·API·개인정보 처리](docs/itda-nehemiah-demo.md)
 
-Google OAuth 리디렉션 URI는 로컬에서 `http://localhost:8787/api/auth/callback/google`, 무료 운영 구성에서 `https://gsmch-youth-bulletin.gsmch-youth-dev.workers.dev/api/auth/callback/google`로 등록합니다. 별도 도메인을 쓰는 경우에는 해당 API 주소를 등록합니다. 관리자 계정으로 한 번 로그인한 뒤 DB 관리자가 해당 계정을 승인합니다.
+Google OAuth 리디렉션 URI는 로컬에서 `http://localhost:8787/api/auth/callback/google`, 무료 운영 구성에서 `https://gsmch-youth-bulletin.gsmch-youth-dev.workers.dev/api/auth/callback/google`로 등록합니다. 별도 도메인을 쓰는 경우에는 해당 API 주소를 등록합니다. 현재 기본값인 `ADMIN_REGISTRATION_MODE=automatic`에서는 Google 로그인 후 첫 인증 API 접근에서 관리자 권한을 자동 등록합니다. 추후 신규 자동 등록을 중지하려면 서버 설정을 `approval`로 변경합니다. 이 모드에서는 Google로 한 번 로그인한 계정을 다음 명령으로 수동 승인합니다.
 
 ```sh
 cd apps/api
 psql "$DATABASE_URL" -v admin_email='관리자 이메일' -f db/grant-admin.sql
 ```
 
-잇다의 `app_users`에 이미 생성된 계정은 해당 행의 `role`도 `admin`으로 변경하고 `version`을 증가시켜야 합니다. 승인을 회수할 때는 `admin_users`에서 해당 계정을 삭제하고 `app_users.role`을 `user`로 바꾸며 `version`을 증가시킵니다. 관리자 화면에서는 권한을 부여할 수 없습니다.
+인증·서비스·행사 스키마를 먼저 적용해야 합니다. 이 명령은 연결된 Google 계정을 확인한 뒤 `admin_users`와 `app_users.role`을 한 번에 반영하며 기존 회원도 갱신합니다. 결과가 0행이면 해당 이메일의 Google 연결 또는 활성 계정 상태를 확인하세요. 기존 자동 등록 관리자 권한은 `approval` 전환으로 회수되지 않습니다. 권한을 회수하려면 먼저 `approval`로 전환한 뒤 `admin_users`에서 해당 계정을 삭제하고 `app_users.role`을 `user`로 바꾸며 `version`을 증가시킵니다. 관리자 화면에서는 권한을 부여할 수 없습니다.
 
 ## CI와 테스트
 
@@ -190,7 +190,7 @@ API 테스트는 `apps/api/tests`에 추가합니다. 입력 검증 외에 행�
 
 ## API
 
-공개 API는 `/v1/health`, `/v1/bulletins/current`, `/v1/bulletins`, `/v1/bulletins/:date`, 공개 행사 조회와 `/v1/retreats/nehemiah-winter`입니다. 신청·본인 정보는 로그인이 필요합니다. 관리자 API는 `/v1/admin/*`이고 Better Auth 세션과 `app_users.role`을 검사하며 기존 `admin_users`는 초기 관리자 등록에 사용합니다. 느동수의 전용 신청·프로필 처리 API는 [운영 안내](docs/itda-nehemiah-demo.md#이용-흐름과-api)를 참고하세요. 오류는 `{ "code": "...", "message": "..." }` 형태로 반환합니다. 공개 주보 GET 응답은 Workers 인스턴스별로 최대 60초간 캐시합니다. 관리자 저장·발행 성공 시 해당 인스턴스의 캐시와 수정한 브라우저의 저장본을 비우며, 다른 인스턴스의 캐시는 최대 60초 뒤 만료됩니다. 수정한 브라우저는 60초간 서버 캐시를 우회합니다. 관리자·인증·헬스 체크·오류 응답은 캐시하지 않습니다. 자세한 정책과 확인 방법은 [운영 문서](docs/operations.md#8-주보-데이터-캐시)를 참고하세요.
+공개 API는 `/v1/health`, `/v1/bulletins/current`, `/v1/bulletins`, `/v1/bulletins/:date`, 공개 행사 조회와 `/v1/retreats/nehemiah-winter`입니다. 신청·본인 정보는 카카오로 로그인한 Better Auth 세션이 필요합니다. 관리자 API는 `/v1/admin/*`이고 Google로 로그인한 세션과 활성 `app_users.role = 'admin'`을 검사하며 `admin_users`에도 관리자 등록을 기록합니다. 현재 Google 로그인 계정은 자동으로 관리자가 되며 `ADMIN_REGISTRATION_MODE=approval`에서는 수동 승인이 필요합니다. [API 인증 정책과 설정](docs/api-authentication.md)에 공통 계정 API·공급자 설정·오류와 마이그레이션 절차를 정리했습니다. 느동수의 전용 신청·프로필 처리 API는 [운영 안내](docs/itda-nehemiah-demo.md#이용-흐름과-api)를 참고하세요. 오류는 `{ "code": "...", "message": "..." }` 형태로 반환합니다. 공개 주보 GET 응답은 Workers 인스턴스별로 최대 60초간 캐시합니다. 관리자 저장·발행 성공 시 해당 인스턴스의 캐시와 수정한 브라우저의 저장본을 비우며, 다른 인스턴스의 캐시는 최대 60초 뒤 만료됩니다. 수정한 브라우저는 60초간 서버 캐시를 우회합니다. 관리자·인증·헬스 체크·오류 응답은 캐시하지 않습니다. 자세한 정책과 확인 방법은 [운영 문서](docs/operations.md#8-주보-데이터-캐시)를 참고하세요.
 
 ## 참고 문서
 

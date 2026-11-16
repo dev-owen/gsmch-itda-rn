@@ -18,7 +18,7 @@ npm run dev:web
 
 `http://localhost:5173/admin`으로 접속합니다. Google OAuth 콜백은 API 주소인 `http://localhost:8787/api/auth/callback/google`에 등록합니다. 관리자 웹 주소는 서버의 `WEB_ORIGIN` 또는 `EXTRA_TRUSTED_ORIGINS`에 포함되어야 합니다. 배포 시 웹의 `VITE_API_BASE_URL`에 잇다 API 주소를 지정합니다. 같은 호스트에서 서비스하면 빈 값으로 둡니다.
 
-승인받은 Google 계정으로 로그인합니다. 관리자 초기 지정은 기존 `apps/api/db/grant-admin.sql`과 저장소 README의 안내를 따릅니다. 이미 앱을 이용한 계정은 `app_users.role`도 `admin`으로 갱신하고 `version`을 증가시켜야 합니다. 웹 화면에서는 관리자 권한을 부여할 수 없습니다.
+현재는 Google 계정으로 로그인하면 관리자로 자동 등록되어 대시보드를 이용합니다. 서버의 `ADMIN_REGISTRATION_MODE` 기본값은 `automatic`입니다. 추후 `approval`로 변경하면 신규 자동 등록을 중지하고 `apps/api/db/grant-admin.sql`로 수동 승인할 수 있습니다. 전환 전에 등록된 관리자 권한은 그대로 유지되며 별도로 회수해야 합니다. 웹의 별도 관리자 승인 화면은 아직 제공하지 않습니다. [API 인증 설정](api-authentication.md)
 
 ## 메뉴
 

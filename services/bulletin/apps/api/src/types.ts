@@ -11,6 +11,7 @@ export type Bindings = {
   BETTER_AUTH_SECRET: string;
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
+  ADMIN_REGISTRATION_MODE?: 'automatic' | 'approval';
   KAKAO_CLIENT_ID?: string;
   KAKAO_CLIENT_SECRET?: string;
   MOBILE_APP_ORIGIN?: string;

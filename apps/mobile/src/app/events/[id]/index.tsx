@@ -42,7 +42,6 @@ export default function EventDetailScreen() {
     {registration ? <Button label="내 신청 확인하기" onPress={apply} /> : event.registrationEnabled ? <Button label={!user && status.canApply ? '로그인하고 신청하기' : user && event.requiresMemberVerification && !user.isMemberVerified ? '성도 인증 요청하러 가기' : status.canApply ? '행사 신청하기' : status.label} disabled={!status.canApply} onPress={apply} /> : <Notice>앱에서 신청을 받지 않는 일정입니다. 상세 안내를 확인해 주세요.</Notice>}
     {event.sourceUrl && <Button label="주보 원문 보기 ↗" variant="ghost" onPress={() => void action.run(async () => { if (!/^https?:\/\//i.test(event.sourceUrl!)) throw new Error('원문 주소를 확인할 수 없습니다.'); await Linking.openURL(event.sourceUrl!); })} />}
     {event.retreatSlug && <Button label="느동수 홈 보기" variant="secondary" onPress={() => router.push('/dongsu')} />}
-    {user?.role === 'admin' && <Button label="이 행사 관리하기" variant="secondary" onPress={() => router.push({ pathname: '/manage/events/[id]', params: { id } })} />}
     {action.error && <Notice danger>{action.error}</Notice>}
   </Screen>;
 }

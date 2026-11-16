@@ -79,6 +79,24 @@ test('PostgreSQL events: attendee cannot change another registration or mark att
   assert.equal(corrected.registration.checked_by, 'admin');
 }));
 
+test('PostgreSQL events: an admin acting through the user API obeys ownership, attendance and cancellation deadlines', { skip: !databaseUrl }, async () => fixture(async ({ pool, user, event, apply }) => {
+  const admin = await user('administrator', { role: 'admin' });
+  const participant = await user('participant');
+  const target = await event();
+  const other = (await apply(participant, target)).registration;
+  const own = (await apply(admin, target)).registration;
+  const userAccess = { ...admin, access: 'user' };
+  await assert.rejects(() => cancelRegistration(pool, userAccess, other.id, other.version), { code: 'FORBIDDEN' });
+  await assert.rejects(() => correctParticipantName(pool, userAccess, other.id, '다른 이름', other.version), { code: 'FORBIDDEN' });
+  const checked = (await setAttendance(pool, admin, own.id, { expectedVersion: own.version, attendanceStatus: 'present' })).registration;
+  await assert.rejects(() => cancelRegistration(pool, userAccess, checked.id, checked.version), { code: 'ATTENDANCE_LOCKED' });
+  await assert.rejects(() => correctParticipantName(pool, userAccess, checked.id, '다른 이름', checked.version), { code: 'ATTENDANCE_LOCKED' });
+  const reset = (await setAttendance(pool, admin, own.id, { expectedVersion: checked.version, attendanceStatus: 'unmarked' })).registration;
+  await pool.query("UPDATE events SET cancellation_closes_at=now()-interval '1 minute' WHERE id=$1", [target.id]);
+  await assert.rejects(() => cancelRegistration(pool, userAccess, reset.id, reset.version), { code: 'CANCELLATION_CLOSED' });
+  assert.equal((await cancelRegistration(pool, admin, reset.id, reset.version)).registration.status, 'cancelled');
+}));
+
 test('PostgreSQL events: concurrent cancellation and attendance cannot leave a cancelled attendee marked present', { skip: !databaseUrl }, async () => fixture(async ({ pool, user, event, apply }) => {
   const actor = await user('participant'); const admin = await user('admin', { role: 'admin' });
   const target = await event(); const created = (await apply(actor, target)).registration;

@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { AppText as Text } from '@/components/app-text';
-import type { Gender, Provider, RetreatDetail, RetreatRegistrationInput } from '@/domain/types';
+import type { Gender, RetreatDetail, RetreatRegistrationInput } from '@/domain/types';
 import { api } from '@/services/api';
 import { useSession } from '@/services/session';
 import { useAction, useResource } from '@/hooks/use-resource';
@@ -49,9 +49,9 @@ export default function RetreatApplyScreen() {
   const status = eventStatus(camp.event, now);
   const reviewed = flow.reviewed && flow.reviewedEventVersion === camp.event.version;
   const review = () => void action.run(async () => { validate(draft, camp); flow.setView('review'); });
-  const login = (provider: Provider) => void action.run(async () => {
+  const login = () => void action.run(async () => {
     flow.beginGuestLogin();
-    try { await signIn(provider, '/retreats/nehemiah-winter/apply'); }
+    try { await signIn('kakao', '/retreats/nehemiah-winter/apply'); }
     catch (error) { flow.cancelGuestLogin(); throw error; }
   });
   const submit = () => void action.run(async () => {
@@ -84,7 +84,7 @@ export default function RetreatApplyScreen() {
       <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: reviewed, disabled: action.busy }} disabled={action.busy} onPress={() => flow.setReviewed(!reviewed, camp.event.version)}><Card><Row between><View style={common.grow}><Body>신청 내용을 확인했습니다.</Body><Body muted>이 정보는 수련회 신청·출석과 현장 안내, 기도제목 전달에 사용됩니다.</Body></View><Badge label={reviewed ? '확인 완료' : '확인하기'} tone={reviewed ? 'green' : 'gold'} /></Row></Card></Pressable>
       {action.error && <Notice danger>{action.error}</Notice>}
       {!status.canApply && <Notice>현재 {status.label} 상태입니다. 신청서는 살펴볼 수 있지만 최종 접수는 할 수 없어요.</Notice>}
-      {user ? <Button label="느동수 최종 접수하기" busy={action.busy} disabled={!reviewed || !status.canApply} onPress={submit} /> : <Card><Text style={common.title}>최종 접수만 로그인해 주세요</Text><Body muted>‘계속하기’를 누르면 지금 작성한 내용은 메모리에만 두고 로그인 후 이어갑니다. 로그인한 계정의 등록 정보가 다르면 그 정보로 다시 확인하게 됩니다.</Body><Button label="카카오로 로그인하고 이어가기" variant="kakao" busy={action.busy} disabled={!reviewed || !status.canApply} onPress={() => login('kakao')} /><Button label="Google로 로그인하고 이어가기" variant="ghost" busy={action.busy} disabled={!reviewed || !status.canApply} onPress={() => login('google')} /></Card>}
+      {user ? <Button label="느동수 최종 접수하기" busy={action.busy} disabled={!reviewed || !status.canApply} onPress={submit} /> : <Card><Text style={common.title}>최종 접수만 로그인해 주세요</Text><Body muted>‘계속하기’를 누르면 지금 작성한 내용은 메모리에만 두고 로그인 후 이어갑니다. 로그인한 계정의 등록 정보가 다르면 그 정보로 다시 확인하게 됩니다.</Body><Button label="카카오로 로그인하고 이어가기" variant="kakao" busy={action.busy} disabled={!reviewed || !status.canApply} onPress={login} /></Card>}
       <Button label="신청 내용 수정하기" variant="ghost" disabled={action.busy} onPress={() => flow.setView('edit')} />
     </>}
     <Button label="수련회 안내 다시 보기" variant="ghost" disabled={action.busy} onPress={() => router.push('/dongsu')} />

@@ -203,6 +203,20 @@ test('PostgreSQL: unlink requires fresh login using the remaining method and inv
   assert.equal((await pool.query('SELECT auth_version FROM app_users')).rows[0].auth_version, 2);
 }));
 
+test('PostgreSQL: required Kakao user and Google admin login methods cannot be unlinked', { skip: !databaseUrl }, async () => fixture(async ({ pool, createUser }) => {
+  for (const [id, provider, otherProvider, role] of [
+    ['participant', 'kakao', 'google', 'user'], ['administrator', 'google', 'kakao', 'admin'],
+  ]) {
+    const actor = await createUser(id, provider, { role });
+    await pool.query('INSERT INTO "account" (id,"userId","providerId","accountId") VALUES ($1,$2,$3,$1)',
+      [`other-${id}`, id, otherProvider]);
+    await pool.query('UPDATE "session" SET "authProviderId"=$2 WHERE id=$1', [actor.sessionId, otherProvider]);
+    await assert.rejects(() => unlinkLogin(pool, actor, `account-${id}`), { code: 'REQUIRED_LOGIN_METHOD' });
+    assert.equal((await pool.query('SELECT id FROM "account" WHERE "userId"=$1', [id])).rowCount, 2);
+    assert.equal((await pool.query('SELECT id FROM "session" WHERE "userId"=$1', [id])).rowCount, 1);
+  }
+}));
+
 test('PostgreSQL: deletion anonymizes attendance, cancels future registrations and rejects the last admin', { skip: !databaseUrl }, async () => fixture(async ({ pool, createUser, createEvent, register }) => {
   const owner = await createUser('owner', 'google', { peerGroup: '99', gender: 'female', phoneNumber: '01012345678' });
   const future = await register('owner', await createEvent(), { answers: retreatAnswers() });

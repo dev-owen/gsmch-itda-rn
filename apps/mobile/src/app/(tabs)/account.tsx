@@ -26,7 +26,7 @@ function AccountDetails() {
     <Section title="내 정보">{user && <ProfileEditor key={`${user.id}:${user.name}:${user.peerGroup}:${user.gender}:${user.phoneNumber}`} user={user} onSaved={refresh} />}</Section>
     <Section title="성도 인증"><Card><Body>{user?.isMemberVerified ? '성도 인증이 완료되었어요. 성도 대상 행사도 신청할 수 있습니다.' : user?.verificationRequestedAt ? '관리자가 요청을 확인하고 있어요. 아래에서 상태를 새로 확인할 수 있습니다.' : '성도 대상 행사에 참여하려면 인증을 요청해 주세요. 일반 공개 행사에는 인증 없이도 신청할 수 있어요.'}</Body>{!user?.isMemberVerified && !user?.verificationRequestedAt && <Button label="성도 인증 요청" variant="secondary" busy={action.busy} onPress={verify} />}<Button label="인증 상태 새로 확인" variant="ghost" busy={action.busy} onPress={() => void action.run(async () => { await refresh(); })} /></Card></Section>
     <Section title="로그인과 계정"><Card><Button label="Google · 카카오 연결 관리" variant="ghost" onPress={() => router.push('/account/login-methods')} /><Body muted>로그인 수단을 추가하거나, 따로 가입한 계정을 하나로 합칠 수 있어요.</Body></Card></Section>
-    {user?.role === 'admin' && <Section title="교회 행사 운영"><Card><Button label="행사와 신청자 관리" variant="secondary" onPress={() => router.push('/manage/events')} /><Button label="성도 인증 요청 관리" variant="ghost" onPress={() => router.push('/manage/users')} /></Card></Section>}
+    {user?.role === 'admin' && <Section title="교회 행사 운영"><Card><Body muted>행사와 회원 관리는 웹 관리자 대시보드에서 승인된 Google 계정으로 로그인해 주세요.</Body></Card></Section>}
     {action.notice && <Notice>{action.notice}</Notice>}{action.error && <Notice danger>{action.error}</Notice>}
     <Section title="서비스 안내"><Body muted>선한목자 젊은이교회의 행사 정보를 모아 제공하는 개인 프로젝트입니다. 개인정보는 계정 확인과 행사 신청·출석 관리에 사용하며, 다른 참가자에게 공개하지 않습니다.</Body><FlaticonAttribution /></Section>
     <Button label="로그아웃" variant="ghost" busy={action.busy} onPress={logout} /><Divider />

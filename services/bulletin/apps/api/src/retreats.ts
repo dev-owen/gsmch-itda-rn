@@ -4,7 +4,7 @@ import type { Pool } from 'pg';
 import { ZodError } from 'zod';
 import type { AppEnv } from './types.js';
 import { transaction } from './db.js';
-import { getMember } from './event-users.js';
+import { requireUser } from './event-users.js';
 import { assertCanRegister, ensureActiveMember, EventError, lockMembers, publicEvent, registrationView,
   retreatAnswersView, type Actor, type EventRow, type MemberRow, type RegistrationRow } from './event-domain.js';
 import { DEMO_EVENT_ID, nehemiahWinterRetreat, RETREAT_SLUG } from './retreat-content.js';
@@ -77,13 +77,13 @@ retreatRoutes.get('/retreats/nehemiah-winter', async (c) => {
   return c.json({ retreat: { ...nehemiahWinterRetreat, event: publicEvent(row) } }, 200, noStore);
 });
 retreatRoutes.get('/me/retreats/nehemiah-winter/registration', async (c) => {
-  const member = (await getMember(c, { required: true }))!;
+  const member = await requireUser(c);
   const row = (await c.get('pool').query<RegistrationRow & { event: EventRow }>(`SELECT r.*,to_jsonb(e) AS event
     FROM registrations r JOIN events e ON e.id=r.event_id WHERE r.event_id=$1 AND r.user_id=$2`, [DEMO_EVENT_ID, member.userId])).rows[0];
   return c.json({ registration: row ? { ...registrationView(row, row.event), retreatSlug: RETREAT_SLUG } : null }, 200, noStore);
 });
 retreatRoutes.post('/retreats/nehemiah-winter/registrations', async (c) => {
-  const member = (await getMember(c, { required: true }))!;
+  const member = await requireUser(c);
   const result = await registerForRetreat(c.get('pool'), member, await c.req.json());
   return c.json({ registration: { ...registrationView(result.registration, result.event), retreatSlug: RETREAT_SLUG } }, 200, noStore);
 });

@@ -34,7 +34,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f apps/api/db/retreat-schema.sql
 
 ## 이용 흐름과 API
 
-방문자는 로그인 없이 홈을 보고 신청서를 작성할 수 있습니다. 최종 등록과 본인 신청 조회에는 Better Auth 로그인 세션이 필요합니다. Google·카카오 OAuth와 콜백을 설정하면 로그인 후 작성 중인 신청서로 돌아와 최종 등록합니다.
+방문자는 로그인 없이 홈을 보고 신청서를 작성할 수 있습니다. 최종 등록과 본인 신청 조회에는 카카오 OAuth로 발급된 Better Auth 세션이 필요합니다. 카카오 OAuth와 콜백을 설정하면 로그인 후 작성 중인 신청서로 돌아와 최종 등록합니다. 관리자 명단 조회와 출석·취소 관리는 Google 로그인과 관리자 승인이 필요합니다. [API 인증 설정](api-authentication.md)
 
 | API | 접근과 역할 |
 | --- | --- |

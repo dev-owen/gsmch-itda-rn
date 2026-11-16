@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
 import { createAuth } from './auth.js';
+import { automaticAdminRegistration, registerGoogleAdmin } from './admin-registration.js';
 import type { AppEnv } from './types.js';
 import { ensureActiveMember, EventError, iso, type MemberRow } from './event-domain.js';
 
@@ -8,6 +9,7 @@ export type AppMember = {
   memberVerificationRevokedAt: string | null; status: 'active' | 'merged' | 'deleting';
   mergedIntoUserId: string | null; version: number; authVersion: number;
   sessionId: string; sessionCreatedAt: string;
+  authProviderId: string;
 };
 
 /** fresh bypasses the auth cookie cache; recent OAuth proof is a separate requirement. */
@@ -28,21 +30,43 @@ export async function getMember(c: Context<AppEnv>, options: { required?: boolea
   await pool.query(`INSERT INTO app_users (user_id, name, role)
     VALUES ($1,$2,CASE WHEN EXISTS (SELECT 1 FROM admin_users WHERE user_id=$1) THEN 'admin' ELSE 'user' END)
     ON CONFLICT (user_id) DO NOTHING`, [result.user.id, (result.user.name || '').trim().slice(0, 50)]);
-  const row = (await pool.query<MemberRow>('SELECT * FROM app_users WHERE user_id=$1', [result.user.id])).rows[0];
-  const session = result.session as typeof result.session & { authVersion?: number };
+  let row = (await pool.query<MemberRow>('SELECT * FROM app_users WHERE user_id=$1', [result.user.id])).rows[0];
+  const session = result.session as typeof result.session & { authVersion?: number; authProviderId?: string };
   const authVersion = typeof session.authVersion === 'number' ? session.authVersion : 1;
   if (!row || row.status !== 'active' || row.auth_version !== authVersion) {
     if (!options.required) return null;
     ensureActiveMember(row, { userId: result.user.id, authVersion });
   }
+  // Backfill sessions issued before automatic registration was enabled.
+  if (session.authProviderId === 'google' && row.role !== 'admin' && automaticAdminRegistration(c.env)) {
+    const promoted = await registerGoogleAdmin(pool, result.user.id, authVersion);
+    if (!promoted) {
+      if (!options.required) return null;
+      throw new EventError(401, 'SESSION_EXPIRED', '다시 로그인해 주세요.');
+    }
+    row = promoted;
+  }
   return { userId: row.user_id, name: row.name, role: row.role, isMemberVerified: row.is_member_verified,
     memberVerificationRevokedAt: iso(row.member_verification_revoked_at), status: row.status,
     mergedIntoUserId: row.merged_into_user_id, version: row.version, authVersion,
-    sessionId: session.id, sessionCreatedAt: iso(session.createdAt)! };
+    sessionId: session.id, sessionCreatedAt: iso(session.createdAt)!, authProviderId: session.authProviderId || '' };
+}
+
+/** Public reads may personalize only for a Kakao-authenticated app user. */
+export async function getUser(c: Context<AppEnv>): Promise<AppMember | null> {
+  const member = await getMember(c);
+  return member?.authProviderId === 'kakao' ? member : null;
+}
+
+export async function requireUser(c: Context<AppEnv>): Promise<AppMember & { access: 'user' }> {
+  const member = (await getMember(c, { required: true }))!;
+  if (member.authProviderId !== 'kakao') throw new EventError(403, 'KAKAO_LOGIN_REQUIRED', '카카오로 다시 로그인해 주세요.');
+  return { ...member, access: 'user' };
 }
 
 export async function requireAdmin(c: Context<AppEnv>): Promise<AppMember> {
   const member = (await getMember(c, { required: true, fresh: true }))!;
+  if (member.authProviderId !== 'google') throw new EventError(403, 'GOOGLE_LOGIN_REQUIRED', '관리자 기능은 Google로 다시 로그인해 주세요.');
   if (member.role !== 'admin') throw new EventError(403, 'FORBIDDEN', '관리자 권한이 필요합니다.');
   return member;
 }

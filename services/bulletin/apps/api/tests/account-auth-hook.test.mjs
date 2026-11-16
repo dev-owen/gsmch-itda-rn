@@ -6,14 +6,14 @@ import { createAuth } from '../.test-dist/auth.js';
 
 globalThis.crypto ??= webcrypto;
 const env = { WEB_ORIGIN: 'https://church.example', BETTER_AUTH_URL: 'https://api.church.example',
-  BETTER_AUTH_SECRET: 'test-only-not-a-real-credential-aaaaaaaaaaaaaaaaa', GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '', MOBILE_APP_ORIGIN: 'itda://' };
+  BETTER_AUTH_SECRET: 'test-only-not-a-real-credential-aaaaaaaaaaaaaaaaa', GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '', MOBILE_APP_ORIGIN: 'itda://', ADMIN_REGISTRATION_MODE: 'approval' };
 
-async function withHook(row, run) {
+async function withHook(row, run, overrides = {}) {
   const pool = new pg.Pool({ connectionString: 'postgresql://unused@127.0.0.1/unused' });
   const queries = [];
   pool.query = async (sql, values) => { queries.push({ sql, values }); return { rows: row ? [row] : [] }; };
   try {
-    const auth = createAuth(env, pool);
+    const auth = createAuth({ ...env, ...overrides }, pool);
     // This unit test exercises the installed hook, not a live database schema.
     auth.options.advanced = { ...auth.options.advanced, database: { ...auth.options.advanced?.database, validateSchema: false } };
     const hook = auth.options.databaseHooks.session.create.before;
@@ -51,3 +51,18 @@ test('session-create hook rejects merged/deleting users and starts new app users
     assert.equal(result.data.authVersion, 1); assert.equal(result.data.authProviderId, 'kakao');
   });
 });
+
+test('automatic registration runs inside the verified Google session-create hook only', async () =>
+  withHook({ auth_version: 7, status: 'active' }, async (hook, queries) => {
+    const input = { userId: 'verified-user', authVersion: 999, authProviderId: 'google' };
+    const google = await hook(input, { path: '/callback/google' });
+    assert.equal(google.data.authVersion, 7);
+    assert.equal(google.data.authProviderId, 'google');
+    assert.equal(queries.length, 2);
+    assert.match(queries[1].sql, /INSERT INTO app_users/);
+    assert.match(queries[1].sql, /INSERT INTO admin_users/);
+    assert.deepEqual(queries[1].values, ['verified-user', 7]);
+    await hook(input, { path: '/callback/kakao' });
+    await hook(input, { path: '/get-session', body: { provider: 'google' } });
+    assert.equal(queries.length, 4);
+  }, { ADMIN_REGISTRATION_MODE: 'automatic' }));

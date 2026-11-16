@@ -1,6 +1,6 @@
 # 잇다 — 선한목자 젊은이교회 행사 앱
 
-공개 일정은 로그인 없이 보고, 카카오·Google 로그인 후 신청과 취소를 할 수 있는 React Native 앱입니다. 성도 인증이 필요한 행사와 관리자 기능을 구분합니다. 기존 모바일 주보의 Hono/PostgreSQL 서버를 확장했습니다.
+공개 일정은 로그인 없이 보고, 카카오 로그인 후 신청과 취소를 할 수 있는 React Native 앱입니다. 웹 관리자 대시보드는 Google 로그인 시 관리자로 자동 등록합니다. 성도 인증이 필요한 행사와 관리자 기능을 구분합니다. 기존 모바일 주보의 Hono/PostgreSQL 서버를 확장했습니다.
 
 - `apps/mobile`: Expo SDK 58, React Native, Expo Router
 - `services/bulletin`: 기존 주보 서버·웹과 잇다의 행사/계정 기능 확장
@@ -40,19 +40,21 @@ npm start
 - 서버 OAuth 리다이렉트: `{BETTER_AUTH_URL}/api/auth/callback/google`, `/kakao`
 - 앱 복귀 scheme: `itda://`; 개발 빌드가 필요합니다. Expo Go는 배포용 OAuth 검증 대상이 아닙니다.
 - 허용 웹 주소는 `WEB_ORIGIN`과 `EXTRA_TRUSTED_ORIGINS`, 앱 주소는 `MOBILE_APP_ORIGIN`에 설정합니다.
-- 관리자 초기 지정은 기존 `apps/api/db/grant-admin.sql` 사용 후 행사 스키마를 적용합니다. 기존 회원을 나중에 관리자로 지정한다면 `app_users.role`도 함께 갱신해야 합니다.
+- 현재 관리자 등록은 `ADMIN_REGISTRATION_MODE=automatic`이 기본값입니다. Google 로그인 후 첫 인증 API 접근에서 `admin_users`와 `app_users.role`을 자동 등록합니다. 추후 `approval`로 바꾸면 신규 자동 등록을 중지하고 `services/bulletin/apps/api/db/grant-admin.sql`로 수동 승인할 수 있습니다. 기존 관리자 권한은 별도로 회수해야 합니다.
 
-로그인은 사용자 구분만 수행합니다. 성도 인증은 별도의 관리자 확인으로 반영합니다. 이메일이 같아도 계정을 자동 통합하지 않습니다.
+Google 로그인은 현재 관리자 자동 등록에 사용합니다. 성도 인증은 별도의 관리자 확인으로 반영합니다. 이메일이 같아도 계정을 자동 통합하지 않습니다.
+
+모바일 앱의 로그인·계정 본인 확인은 카카오만, PC 관리자 웹은 Google만 사용합니다. 서버도 앱 복귀 주소와 관리자 웹 복귀 주소에 맞는 로그인 수단인지 검사합니다. 신청·본인 정보 API는 카카오로 발급된 세션, `/v1/admin/*`는 Google로 발급된 세션과 DB 관리자 권한을 요구합니다. [API 인증 정책과 설정](services/bulletin/docs/api-authentication.md)에 공개 범위·오류·마이그레이션 절차를 정리했습니다.
 
 ## 계정 연결과 통합
 
-단일 USER에 카카오·Google 로그인 수단을 연결합니다. 이미 두 USER가 있다면 양쪽 계정을 새로 인증하고 신청별 최종 결과를 확인한 후 통합합니다. 개인정보와 역할은 클라이언트가 지정할 수 없습니다.
+기존에 연결된 카카오·Google 계정 정보는 유지합니다. 모바일에서는 카카오로만 계정 소유를 확인하며 Google 연결·통합 로그인은 시작할 수 없습니다. 계정 통합은 양쪽 계정을 확인한 뒤 충돌 여부를 검토하고 확정합니다. 개인정보와 역할은 클라이언트가 지정할 수 없습니다.
 
 통합은 DB 트랜잭션, 전체 미리보기 검증, 짧은 본인 확인 기한, 중복 요청 식별자를 사용합니다. 신청·출석 충돌은 확정을 막습니다. 관리자 USER가 포함되면 기존 관리자 ID를 유지하고 별도 승인을 요구합니다. 통합·해제·탈퇴로 폐기한 세션은 서버에서도 즉시 거절합니다.
 
 ## 관리자 웹
 
-`services/bulletin`에서 `npm run dev:itda`와 `npm run dev:web`을 각각 실행한 뒤 `http://localhost:5173/admin`에 접속합니다. 승인받은 Google 관리자 계정으로 로그인하면 동계수련회 접수 현황·검색·출석·신청 취소·CSV 다운로드와 회원 기본 정보·성도 인증·신청 내역을 관리합니다. 기존 주보 관리도 같은 메뉴에서 이용합니다. [관리자 웹 안내](services/bulletin/docs/itda-admin.md)
+`services/bulletin`에서 `npm run dev:itda`와 `npm run dev:web`을 각각 실행한 뒤 `http://localhost:5173/admin`에 접속합니다. Google 계정으로 로그인하면 관리자로 자동 등록되어 동계수련회 접수 현황·검색·출석·신청 취소·CSV 다운로드와 회원 기본 정보·성도 인증·신청 내역을 관리합니다. 기존 주보 관리도 같은 메뉴에서 이용합니다. [관리자 웹 안내](services/bulletin/docs/itda-admin.md)
 
 ## 느동수 체험
 

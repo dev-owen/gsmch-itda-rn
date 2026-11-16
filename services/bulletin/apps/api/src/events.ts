@@ -4,7 +4,7 @@ import { z, ZodError } from 'zod';
 import type { PoolClient } from 'pg';
 import type { AppEnv } from './types.js';
 import { transaction } from './db.js';
-import { getMember, requireAdmin, type AppMember } from './event-users.js';
+import { getUser, requireUser, requireAdmin, type AppMember } from './event-users.js';
 import { adminMemberSelect, adminMemberView, findAdminMember, updateAdminMemberProfile, type AdminMemberRow } from './admin-members.js';
 import { adminEvent, attendanceInput, cancelRegistration, cancellationInput, correctParticipantName, ensureActiveMember,
   eventInput, EventError, lockMembers, memberEvent, memberView, nameInput, publicEvent, registerForEvent,
@@ -29,7 +29,7 @@ eventRoutes.onError((error, c) => {
 });
 
 function canSee(event: EventRow, member: AppMember | null) {
-  return member?.role === 'admin' || (event.publication_status === 'published' && (event.visibility === 'public' || member?.isMemberVerified));
+  return event.publication_status === 'published' && (event.visibility === 'public' || member?.isMemberVerified);
 }
 async function requireLockedAdmin(client: PoolClient, member: AppMember) {
   const row = ensureActiveMember((await lockMembers(client, [member.userId]))[0], member);
@@ -47,7 +47,7 @@ const columns = `title,category,description,member_details,location,target,start
   registration_closes_at,cancellation_closes_at,source_promotion_id`;
 
 eventRoutes.get('/events', async (c) => {
-  const member = await getMember(c);
+  const member = await getUser(c);
   const limit = z.coerce.number().int().min(1).max(100).parse(c.req.query('limit') || 20);
   const cursor = c.req.query('cursor') ? uuid.parse(c.req.query('cursor')) : null;
   const category = c.req.query('category') ? z.enum(['event', 'recruitment']).parse(c.req.query('category')) : null;
@@ -56,31 +56,31 @@ eventRoutes.get('/events', async (c) => {
       AND ($2::text IS NULL OR category = $2)
       AND ($3::uuid IS NULL OR (COALESCE(starts_at,'infinity'::timestamptz),id) >
         (SELECT COALESCE(starts_at,'infinity'::timestamptz),id FROM events WHERE id=$3))
-    ORDER BY starts_at NULLS LAST,id LIMIT $4`, [!!member?.isMemberVerified || member?.role === 'admin', category, cursor, limit + 1]);
+    ORDER BY starts_at NULLS LAST,id LIMIT $4`, [!!member?.isMemberVerified, category, cursor, limit + 1]);
   const items = result.rows.slice(0, limit);
   return c.json({ items: items.map((event) => publicEvent(event)), nextCursor: result.rows.length > limit ? items.at(-1)!.id : null }, 200, noStore);
 });
 
 eventRoutes.get('/events/:id', async (c) => {
   const id = uuid.parse(c.req.param('id'));
-  const member = await getMember(c);
+  const member = await getUser(c);
   const event = (await c.get('pool').query<EventRow>('SELECT * FROM events WHERE id=$1', [id])).rows[0];
   if (!event || !canSee(event, member)) throw new EventError(404, 'NOT_FOUND', '행사를 찾을 수 없습니다.');
   return c.json({ event: member ? memberEvent(event) : publicEvent(event) }, 200, noStore);
 });
 
 eventRoutes.get('/me', async (c) => {
-  const member = (await getMember(c, { required: true }))!;
+  const member = await requireUser(c);
   const row = (await c.get('pool').query<MemberRow>('SELECT * FROM app_users WHERE user_id=$1', [member.userId])).rows[0];
   return c.json({ user: memberView(row) }, 200, noStore);
 });
 eventRoutes.patch('/me', async (c) => {
-  const member = (await getMember(c, { required: true }))!;
+  const member = await requireUser(c);
   const row = await updateMemberProfile(c.get('pool'), member, await c.req.json());
   return c.json({ user: memberView(row) }, 200, noStore);
 });
 eventRoutes.post('/me/member-verification', async (c) => {
-  const member = (await getMember(c, { required: true }))!;
+  const member = await requireUser(c);
   const row = await transaction(c.get('pool'), async (client) => {
     ensureActiveMember((await lockMembers(client, [member.userId]))[0], member);
     return (await client.query<MemberRow>('UPDATE app_users SET verification_requested_at=now(), version=version+1, updated_at=now() WHERE user_id=$1 RETURNING *', [member.userId])).rows[0];
@@ -88,7 +88,7 @@ eventRoutes.post('/me/member-verification', async (c) => {
   return c.json({ user: memberView(row) }, 200, noStore);
 });
 eventRoutes.get('/me/registrations', async (c) => {
-  const member = (await getMember(c, { required: true }))!;
+  const member = await requireUser(c);
   const { limit, cursor } = page(c);
   if (cursor) uuid.parse(cursor);
   const result = await c.get('pool').query<RegistrationRow & { event: EventRow }>(`SELECT r.*,to_jsonb(e) AS event
@@ -99,25 +99,25 @@ eventRoutes.get('/me/registrations', async (c) => {
   return c.json({ items: rows.map((row) => registrationView(row, row.event)), nextCursor: result.rows.length > limit ? rows.at(-1)!.id : null }, 200, noStore);
 });
 eventRoutes.get('/me/registrations/:id', async (c) => {
-  const member = (await getMember(c, { required: true }))!;
+  const member = await requireUser(c);
   const result = await c.get('pool').query<RegistrationRow & { event: EventRow }>(`SELECT r.*,to_jsonb(e) AS event
     FROM registrations r JOIN events e ON e.id=r.event_id WHERE r.id=$1 AND r.user_id=$2`, [uuid.parse(c.req.param('id')), member.userId]);
   if (!result.rows[0]) throw new EventError(404, 'NOT_FOUND', '신청을 찾을 수 없습니다.');
   return c.json({ registration: registrationView(result.rows[0], result.rows[0].event) }, 200, noStore);
 });
 eventRoutes.post('/events/:id/registrations', async (c) => {
-  const member = (await getMember(c, { required: true }))!;
+  const member = await requireUser(c);
   const result = await registerForEvent(c.get('pool'), member, uuid.parse(c.req.param('id')), registrationInput.parse(await c.req.json()));
   return c.json({ registration: registrationView(result.registration, result.event) }, 200, noStore);
 });
 eventRoutes.delete('/me/registrations/:id', async (c) => {
-  const member = (await getMember(c, { required: true }))!;
+  const member = await requireUser(c);
   const input = cancellationInput.parse(await c.req.json());
   const result = await cancelRegistration(c.get('pool'), member, uuid.parse(c.req.param('id')), input.expectedVersion);
   return c.json({ registration: registrationView(result.registration, result.event) }, 200, noStore);
 });
 eventRoutes.patch('/me/registrations/:id', async (c) => {
-  const member = (await getMember(c, { required: true }))!;
+  const member = await requireUser(c);
   const input = registrationName.parse(await c.req.json());
   const result = await correctParticipantName(c.get('pool'), member, uuid.parse(c.req.param('id')), input.participantName, input.expectedVersion);
   return c.json({ registration: registrationView(result.registration, result.event) }, 200, noStore);

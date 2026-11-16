@@ -4,6 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import { Pool } from 'pg';
 import { ZodError } from 'zod';
 import { authOrigins, createAuth } from './auth.js';
+import { isAccountOriginAllowed } from './account-security.js';
 import { eventRoutes } from './events.js';
 import { accountRoutes } from './account-routes.js';
 import { retreatRoutes } from './retreats.js';
@@ -27,6 +28,16 @@ app.use('/api/auth/*', (c, next) => cors({ origin: authOrigins(c.env).filter((va
 app.use('/v1/*', (c, next) => cors({ origin: authOrigins(c.env).filter((value) => /^https?:\/\//.test(value)), credentials: true,
   allowHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-Account-Operation-Token', 'expo-origin'],
 })(c, next));
+// CORS controls reading responses; reject untrusted browser writes before running a handler.
+// Native app requests have no Origin and still need a server-validated session.
+app.use('/v1/*', async (c, next) => {
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)
+    && (!isAccountOriginAllowed(c.req.header('Origin'), authOrigins(c.env), c.env.BETTER_AUTH_URL)
+      || (!c.req.header('Origin') && c.req.header('Sec-Fetch-Site') === 'cross-site'))) {
+    return fail('UNTRUSTED_ORIGIN', '허용되지 않은 요청입니다.', 403);
+  }
+  await next();
+});
 // Translate only published public responses, after the source cache has finished.
 app.use('/v1/*', automaticContentTranslation());
 // Cache hits return before opening a database pool. CORS is applied per request.
@@ -48,6 +59,14 @@ app.all('/api/auth/*', (c) => {
   return createAuth(c.env, c.get('pool')).handler(c.req.raw);
 });
 
+// Register before every subrouter so all current and future admin endpoints share this guard.
+app.use('/v1/admin/*', async (c, next) => {
+  const member = await requireAdmin(c);
+  c.set('adminUserId', member.userId);
+  c.header('Cache-Control', 'no-store');
+  await next();
+});
+
 app.route('/v1', eventRoutes);
 app.route('/v1', accountRoutes);
 app.route('/v1', retreatRoutes);
@@ -57,13 +76,6 @@ app.route('/v1', syncAdminRoutes);
 app.get('/v1/health', async (c) => {
   await c.get('pool').query('SELECT 1');
   return c.json({ status: 'ok' }, 200, noStore);
-});
-
-app.use('/v1/admin/*', async (c, next) => {
-  const member = await requireAdmin(c);
-  c.set('adminUserId', member.userId);
-  await next();
-  c.header('Cache-Control', 'no-store');
 });
 
 app.get('/v1/bulletins/current', async (c) => {

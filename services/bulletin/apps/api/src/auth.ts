@@ -1,7 +1,10 @@
 import { betterAuth } from 'better-auth';
+import { APIError, createAuthMiddleware, getOAuthState } from 'better-auth/api';
 import { expo } from '@better-auth/expo';
 import type { Pool } from 'pg';
 import type { Bindings } from './types';
+import { automaticAdminRegistration, registerGoogleAdmin } from './admin-registration.js';
+import { assertLoginPolicy, LoginPolicyError } from './login-policy.js';
 
 export function createAuth(env: Bindings, pool: Pool) {
   const origins = authOrigins(env);
@@ -11,6 +14,32 @@ export function createAuth(env: Bindings, pool: Pool) {
     baseURL: env.BETTER_AUTH_URL,
     trustedOrigins: origins,
     plugins: [expo()],
+    hooks: { before: createAuthMiddleware(async (context) => {
+      if (context.path !== '/sign-in/social' && context.path !== '/link-social') return;
+      try {
+        assertLoginPolicy({ ...context.body, expoOrigin: context.headers?.get('expo-origin') }, env);
+      } catch (error) {
+        if (!(error instanceof LoginPolicyError)) throw error;
+        throw new APIError(error.status === 400 ? 'BAD_REQUEST' : 'FORBIDDEN', { code: error.code, message: error.message });
+      }
+    }) },
+    user: { validateUserInfo: async ({ source }, context) => {
+      if (source.method !== 'oauth') return;
+      // parseState has already verified OAuth state before this identity gate runs,
+      // including account-link callbacks which do not create a new session.
+      const state = await getOAuthState();
+      try {
+        assertLoginPolicy({
+          provider: source.oauth?.providerId,
+          callbackURL: state?.callbackURL ?? context.body?.callbackURL,
+          errorCallbackURL: state ? state.errorURL : context.body?.errorCallbackURL,
+          newUserCallbackURL: state ? state.newUserURL : context.body?.newUserCallbackURL,
+        }, env);
+      } catch (error) {
+        if (!(error instanceof LoginPolicyError)) throw error;
+        return { error: error.code, errorDescription: error.message };
+      }
+    } },
     emailAndPassword: { enabled: false },
     account: { accountLinking: {
       enabled: true, disableImplicitLinking: true, allowDifferentEmails: true,
@@ -35,7 +64,10 @@ export function createAuth(env: Bindings, pool: Pool) {
       const bodyProvider = path === '/sign-in/social' && context?.body && typeof context.body === 'object'
         ? (context.body as Record<string, unknown>).provider : undefined;
       const provider = callbackProvider || (typeof bodyProvider === 'string' && ['google', 'kakao', 'apple'].includes(bodyProvider) ? bodyProvider : '');
-      return { data: { ...session, authVersion: current.rows[0]?.auth_version ?? 1, authProviderId: provider } };
+      const authVersion = current.rows[0]?.auth_version ?? 1;
+      if (provider === 'google' && automaticAdminRegistration(env)
+        && !await registerGoogleAdmin(pool, session.userId, authVersion)) return false;
+      return { data: { ...session, authVersion, authProviderId: provider } };
     } } } },
     socialProviders: {
       ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET ? {

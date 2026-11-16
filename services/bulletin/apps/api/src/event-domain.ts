@@ -21,7 +21,8 @@ export type MemberRow = {
   status: 'active' | 'merged' | 'deleting'; merged_into_user_id: string | null; version: number; auth_version: number;
   peer_group?: string | null; gender?: Gender | null; phone_number?: string | null;
 };
-export type Actor = { userId: string; authVersion: number };
+// User API calls must obey ownership/deadlines even when the account also has an admin role.
+export type Actor = { userId: string; authVersion: number; access?: 'user' };
 export type EventRow = {
   id: string; title: string; category: 'event' | 'recruitment'; description: string; member_details: string;
   location: string; target: string; starts_at: Date | string | null; ends_at: Date | string | null; all_day: boolean;
@@ -213,11 +214,12 @@ async function lockedRegistration(client: PoolClient, actor: Actor, id: string) 
   if (!reference) throw new EventError(404, 'NOT_FOUND', '신청을 찾을 수 없습니다.');
   const users = await lockMembers(client, [actor.userId, reference.user_id]);
   const current = ensureActiveMember(users.find((row) => row.user_id === actor.userId), actor);
-  if (reference.user_id !== actor.userId && current.role !== 'admin') throw new EventError(403, 'FORBIDDEN', '본인의 신청만 변경할 수 있습니다.');
+  const member = actor.access === 'user' ? { ...current, role: 'user' as const } : current;
+  if (reference.user_id !== actor.userId && member.role !== 'admin') throw new EventError(403, 'FORBIDDEN', '본인의 신청만 변경할 수 있습니다.');
   const event = await lockEvent(client, reference.event_id);
   const row = (await client.query<RegistrationRow>('SELECT * FROM registrations WHERE id = $1 FOR UPDATE', [id])).rows[0];
   if (!row || row.user_id !== reference.user_id || row.event_id !== reference.event_id) throw new EventError(409, 'REGISTRATION_CHANGED', '변경된 신청을 다시 확인해 주세요.');
-  return { member: current, row, event };
+  return { member, row, event };
 }
 
 export async function registerForEvent(pool: Pool, actor: Actor, eventId: string, input: z.infer<typeof registrationInput>) {

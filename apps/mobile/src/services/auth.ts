@@ -6,6 +6,7 @@ import type { Provider } from '@/domain/types';
 import { API_ORIGIN, APP_SCHEME } from './config';
 import { ApiError } from './errors';
 import { secureStorage } from './secure-storage';
+import { assertMobileLoginProvider } from './login-policy';
 
 let pendingReturnTo = '/account';
 export function authReturnTo() { return pendingReturnTo; }
@@ -48,6 +49,7 @@ export const reauthClient = client('itda-reauth');
 export type AuthClient = typeof authClient;
 
 export async function signInWith(provider: Provider, options: { proof?: boolean; returnTo?: string; client?: AuthClient } = {}) {
+  assertMobileLoginProvider(provider);
   pendingReturnTo = options.returnTo || '/account';
   const selected = options.client || (options.proof ? proofAuthClient : authClient);
   returnClient = selected;
@@ -56,10 +58,9 @@ export async function signInWith(provider: Provider, options: { proof?: boolean;
   try { await task; } finally { if (pendingSignIn === task) pendingSignIn = null; }
 }
 
-async function completeSignIn(selected: AuthClient, provider: Provider, proof?: boolean) {
+async function completeSignIn(selected: AuthClient, provider: 'kakao', proof?: boolean) {
   const before = Platform.OS !== 'web' ? (await selected.getSession({ query: { disableCookieCache: true } })).data?.session.id : null;
-  const result = await selected.signIn.social({ provider, callbackURL: callback(proof),
-    ...(provider === 'google' ? { additionalParams: { prompt: 'select_account' } } : {}) });
+  const result = await selected.signIn.social({ provider, callbackURL: callback(proof) });
   if (result.error) throw new ApiError(result.error.code || 'SIGN_IN_FAILED', result.error.message || '로그인을 완료하지 못했습니다.');
   if (Platform.OS !== 'web') {
     const session = await selected.getSession({ query: { disableCookieCache: true } });

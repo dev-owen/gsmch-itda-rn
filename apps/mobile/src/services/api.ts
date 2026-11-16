@@ -7,6 +7,7 @@ import { APP_SCHEME } from './config';
 import { ApiError } from './errors';
 import { secureStorage } from './secure-storage';
 import { request } from './transport';
+import { assertMobileLoginProvider } from './login-policy';
 export { ApiError } from './errors';
 
 type WireEvent = Omit<EventItem, 'registrationStatus' | 'registrationEnabled'> & { registrationEnabled?: boolean; registrationStatus?: string };
@@ -55,13 +56,14 @@ async function methods(): Promise<LoginMethod[]> {
   return data.methods.map(item => ({ ...item, canUnlink: data.canUnlink }));
 }
 async function reauthenticate(provider?: Provider) {
+  const selected = provider ?? 'kakao';
+  assertMobileLoginProvider(selected);
   requireNativeAccountFlow();
-  const current = (await request<{ user: AppUser }>('/v1/me')).user;
+  const current = (await request<{ user: AppUser }>('/v1/account/session')).user;
   const available = await methods();
-  const selected = provider || available.find(item => item.provider === 'kakao' || item.provider === 'google')?.provider as Provider | undefined;
-  if (!selected || !available.some(item => item.provider === selected)) throw new ApiError('LOGIN_METHOD_REQUIRED', '현재 계정에 연결된 로그인 수단으로 본인 확인을 해 주세요.');
+  if (!available.some(item => item.provider === selected)) throw new ApiError('LOGIN_METHOD_REQUIRED', '현재 계정에 연결된 카카오로 본인 확인을 해 주세요.');
   await signInWith(selected, { client: reauthClient, returnTo: '/account/login-methods' });
-  const verified = (await request<{ user: AppUser }>('/v1/me', { client: reauthClient })).user;
+  const verified = (await request<{ user: AppUser }>('/v1/account/session', { client: reauthClient })).user;
   if (verified.id !== current.id) throw new ApiError('WRONG_ACCOUNT', '현재 사용 중인 계정과 다른 계정입니다. 연결된 계정으로 다시 본인 확인을 해 주세요.');
   return reauthClient;
 }
@@ -138,6 +140,7 @@ export const api = {
   async requestMemberVerification() { return user((await request<{ user: AppUser }>('/v1/me/member-verification', { method: 'POST', body: '{}' })).user); },
   listLoginMethods: methods,
   async linkLoginMethod(provider: Provider) {
+    assertMobileLoginProvider(provider);
     return runAccountFlow(async () => {
     const client = await reauthenticate();
     const result = await client.linkSocial({ provider, callbackURL: Linking.createURL('/auth/callback', { scheme: APP_SCHEME }) });
@@ -147,6 +150,7 @@ export const api = {
     });
   },
   async unlinkLoginMethod(id: string, providerToKeep: Provider) {
+    assertMobileLoginProvider(providerToKeep);
     return runAccountFlow(async () => {
     const client = await reauthenticate(providerToKeep);
     await request(`/v1/me/login-methods/${pathId(id)}/unlink`, { method: 'POST', body: '{}', client });
@@ -154,13 +158,14 @@ export const api = {
     });
   },
   async prepareMerge(provider: Provider) {
+    assertMobileLoginProvider(provider);
     return runAccountFlow(async () => {
     const ownerClient = await reauthenticate();
     const prepared = await request<{ id: string; operationToken: string; expiresAt: string }>('/v1/account-merges/prepare', {
       method: 'POST', body: json({ provider }), client: ownerClient, headers: { 'Idempotency-Key': Crypto.randomUUID() } });
     const operation: Operation = { ...prepared, confirmKey: Crypto.randomUUID() }; await saveOperation(operation);
     await signInWith(provider, { proof: true, returnTo: `/account/merge?requestId=${operation.id}` });
-    await request('/v1/me', { client: proofAuthClient });
+    await request('/v1/account/session', { client: proofAuthClient });
     await request(`/v1/account-merges/${pathId(operation.id)}/prove`, { method: 'POST', body: '{}', client: proofAuthClient, headers: headers(operation) });
     return mergePreview(operation);
     });

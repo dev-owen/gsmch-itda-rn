@@ -8,6 +8,7 @@ import { AccountError, approveMerge, cancelOperation, confirmDeletion, confirmMe
   prepareOperation, previewDeletion, previewMerge, proveMerge, readOperation, readRecentProof,
   unlinkLogin, verifyOperationToken } from './account-store.js';
 import type { AppEnv } from './types';
+import { memberView, type MemberRow } from './event-domain.js';
 
 export const accountRoutes = new Hono<AppEnv>();
 const noStore = { 'Cache-Control': 'no-store' };
@@ -53,6 +54,13 @@ function guarded(handler: AccountHandler): AccountHandler {
     }
   };
 }
+
+// Account linking/merge can prove a Google identity independently of Kakao app access.
+accountRoutes.get('/account/session', guarded(async (c) => {
+  const actor = await member(c);
+  const row = (await c.get('pool').query<MemberRow>('SELECT * FROM app_users WHERE user_id=$1', [actor.userId])).rows[0];
+  return c.json({ user: memberView(row) }, 200, noStore);
+}));
 
 accountRoutes.get('/me/login-methods', guarded(async (c) => {
   const actor = await member(c);
