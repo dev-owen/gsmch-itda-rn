@@ -10,7 +10,7 @@
     "dev:api": "npm run dev -w @bulletin/api",
     "build": "npm run build -w @bulletin/web && npm run build -w @bulletin/api",
     "typecheck": "npm run typecheck -w @bulletin/web && npm run typecheck -w @bulletin/api",
-    "test": "npm run test -w @bulletin/api",
+    "test": "npm run test -w @bulletin/api && npm run test -w @bulletin/web",
     "ci": "npm run typecheck && npm test && npm run build",
     "prepare:production": "node deployment/prepare.mjs",
     "prepare:free": "node deployment/prepare-free.mjs",

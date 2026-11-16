@@ -1,6 +1,7 @@
 import { createAuthClient } from 'better-auth/react';
 import type { RecurringInfo } from './church-info';
 import { createPublicDataCache, isPublicBulletinPath } from './public-cache';
+import { ADMIN_AUTH_REQUIRED, adminAuthStatus } from './admin-auth';
 
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 export const MEDIA_BASE = (import.meta.env.VITE_MEDIA_BASE_URL || `${API_BASE}/v1/media`).replace(/\/$/, '');
@@ -73,7 +74,11 @@ async function fetchApi<T>(path: string, options: RequestInit, isPublic: boolean
   if (!response.ok) {
     const body = await response.json().catch(() => ({ code: 'REQUEST_FAILED', message: '요청을 처리하지 못했습니다.' }));
     if (isPublic && response.status >= 400 && response.status < 500) publicCache.remove(path);
-    throw new ApiError(response.status, body.code, body.message);
+    const error = new ApiError(response.status, body.code, body.message);
+    if (path.startsWith('/v1/admin/') && adminAuthStatus(error)) {
+      window.dispatchEvent(new CustomEvent(ADMIN_AUTH_REQUIRED, { detail: error }));
+    }
+    throw error;
   }
   return response.json() as Promise<T>;
 }

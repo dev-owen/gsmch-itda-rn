@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronRight, Eye, ImagePlus, LogOut, Plus, Save, Settings2, Trash2, UploadCloud, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronRight, Eye, ImagePlus, LogOut, Plus, Save, Settings2, ShieldCheck, Snowflake, Trash2, UploadCloud, UsersRound, X } from 'lucide-react';
 import { api, authClient, coverUrl, json, shortDate, showToast, type Bulletin, type BulletinInput, type BulletinListItem, type CalendarEvent, type ChurchEvent, type SiteInfo } from './lib';
 import { BulletinContent } from './public';
 import { normalizeSiteInfo } from './church-info';
@@ -10,39 +10,83 @@ import { PromotionEditor } from './promotion-editor';
 import { CommunityNewsEditor } from './community-news-editor';
 import { WorshipEditor } from './worship-editor';
 import { normalizeWorshipItems, syncSermonFields } from './worship';
+import { RetreatAdminPage } from './retreat-admin';
+import { UsersAdminPage } from './users-admin';
+import { ADMIN_AUTH_REQUIRED, adminAuthStatus, type AdminAuthStatus } from './admin-auth';
+import './itda-admin.css';
 import './editor-actions.css';
 
-type AdminStatus = 'checking' | 'ready' | 'login' | 'forbidden' | 'error';
+type AdminStatus = 'checking' | 'ready' | AdminAuthStatus | 'error';
 function ErrorNote({ text }: { text: string }) { return text ? <div className="form-error" role="alert">{text}</div> : null; }
 
 export function AdminPage() {
   const [status, setStatus] = useState<AdminStatus>('checking');
   const [error, setError] = useState('');
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authAttempt, setAuthAttempt] = useState(0);
   const location = useLocation();
   const navigate = useNavigate();
+  const oauthError = new URLSearchParams(location.search).has('error') ? 'Google 로그인이 취소되었거나 완료되지 않았습니다. 다시 로그인해 주세요.' : '';
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = '잇다 어드민 · 동계수련회와 회원 관리';
+    return () => { document.title = previousTitle; };
+  }, []);
+  useEffect(() => {
+    const onAuthRequired = (event: Event) => {
+      const next = adminAuthStatus((event as CustomEvent).detail);
+      if (next) { setStatus(next); setError(''); }
+    };
+    window.addEventListener(ADMIN_AUTH_REQUIRED, onAuthRequired);
+    return () => window.removeEventListener(ADMIN_AUTH_REQUIRED, onAuthRequired);
+  }, []);
   useEffect(() => {
     let active = true;
     api<{ userId: string }>('/v1/admin/me').then(() => { if (active) setStatus('ready'); }).catch((reason) => {
       if (!active) return;
-      if (reason?.status === 401) setStatus('login');
-      else if (reason?.status === 403) setStatus('forbidden');
+      const next = adminAuthStatus(reason);
+      if (next) setStatus(next);
       else { setStatus('error'); setError(reason instanceof Error ? reason.message : '연결할 수 없습니다.'); }
     });
     return () => { active = false; };
-  }, []);
+  }, [authAttempt]);
   async function signIn() {
-    setError('');
-    const result = await authClient.signIn.social({ provider: 'google', callbackURL: `${window.location.origin}/admin` });
-    if (result.error) setError(result.error.message || '로그인에 실패했습니다.');
+    setError(''); setAuthBusy(true);
+    try {
+      if (status === 'google-login') {
+        const signedOut = await authClient.signOut();
+        if (signedOut.error && signedOut.error.status !== 401) throw new Error('기존 로그인을 해제하지 못했습니다. 다시 시도해 주세요.');
+      }
+      const callbackURL = `${window.location.origin}${location.pathname}`;
+      const result = await authClient.signIn.social({ provider: 'google', callbackURL, errorCallbackURL: callbackURL,
+        additionalParams: { prompt: 'select_account' } });
+      if (result.error) setError(result.error.message || '로그인에 실패했습니다.');
+    } catch (reason) { setError(reason instanceof Error ? reason.message : '로그인 서버에 연결할 수 없습니다. 다시 시도해 주세요.'); }
+    finally { setAuthBusy(false); }
   }
-  async function signOut() { await authClient.signOut(); setStatus('login'); navigate('/admin'); }
-  if (status !== 'ready') return <div className="admin-auth-screen"><Link to="/" className="auth-home"><ArrowLeft size={17} /> 주보로 돌아가기</Link><div className="auth-card"><span className="auth-emblem">✦</span><span className="eyebrow dark">BULLETIN STUDIO</span><h1>주보 관리</h1>
-    {status === 'checking' ? <p>관리자 권한을 확인하고 있습니다.</p> : status === 'login' ? <><p>교회에서 승인한 Google 계정으로 로그인해 주세요.</p><button className="primary-button full" onClick={signIn}>Google로 로그인 <ArrowRight size={17} /></button></> : status === 'forbidden' ? <><p>로그인한 계정에 관리자 권한이 없습니다.<br />배포 관리자에게 계정 승인을 요청해 주세요.</p><button className="secondary-button full" onClick={signOut}>다른 계정으로 로그인</button></> : <p>{error}</p>}
-    <ErrorNote text={error} /></div></div>;
+  async function signOut() {
+    setAuthBusy(true); setError('');
+    try {
+      const result = await authClient.signOut();
+      if (result.error && result.error.status !== 401) throw new Error(result.error.message || '로그아웃하지 못했습니다.');
+      setStatus('login'); navigate('/admin');
+    } catch (reason) { const message = reason instanceof Error ? reason.message : '로그아웃하지 못했습니다.'; setError(message); showToast(message, 'error'); }
+    finally { setAuthBusy(false); }
+  }
+  if (status !== 'ready') return <div className="admin-auth-screen"><Link to="/" className="auth-home"><ArrowLeft size={17} /> 주보로 돌아가기</Link><div className="auth-card"><span className="auth-emblem"><Snowflake size={27} /></span><span className="eyebrow dark">ITDA ADMIN</span><h1>잇다 어드민</h1>
+    {status === 'checking' ? <p role="status">관리자 권한을 확인하고 있습니다.</p> : status === 'login' || status === 'google-login' ? <><p>{status === 'google-login' ? '관리자 기능은 Google 로그인이 필요합니다. 기존 로그인을 해제한 뒤 승인받은 Google 계정으로 로그인해 주세요.' : <>동계수련회 접수와 회원 정보를 한곳에서 관리합니다.<br />승인받은 Google 계정으로 로그인해 주세요.</>}</p><button className="primary-button full" disabled={authBusy} onClick={signIn}>{authBusy ? '로그인 연결 중…' : 'Google로 로그인'} <ArrowRight size={17} /></button><p className="auth-footnote">교회에서 승인한 관리자만 이용할 수 있습니다.</p></> : status === 'forbidden' ? <><p>로그인한 계정에 관리자 권한이 없습니다.<br />배포 관리자에게 계정 승인을 요청해 주세요.</p><button className="secondary-button full" disabled={authBusy} onClick={signOut}>다른 계정으로 로그인</button></> : <><p>관리자 서버에 연결하지 못했습니다.</p><button className="secondary-button full" onClick={() => { setError(''); setStatus('checking'); setAuthAttempt(value => value + 1); }}>다시 연결</button></>}
+    <ErrorNote text={error || oauthError} /></div></div>;
   const path = location.pathname;
-  return <div className="admin-shell"><aside className="admin-sidebar"><Link to="/admin" className="admin-brand"><span>✦</span><div><strong>주보 관리</strong><small>선한목자 젊은이교회</small></div></Link><nav aria-label="관리자 메뉴"><Link className={path === '/admin' ? 'active' : ''} to="/admin"><CalendarDays size={18} /> 주보 목록</Link><Link className={path.includes('site-info') ? 'active' : ''} to="/admin/site-info"><Settings2 size={18} /> 교회 안내</Link></nav><div className="admin-sidebar-bottom"><Link to="/"><Eye size={17} /> 공개 주보 보기</Link><button onClick={signOut}><LogOut size={17} /> 로그아웃</button></div></aside>
-    <main className="admin-main"><div className="admin-topbar"><Link to="/admin" className="admin-mobile-brand">✦ <strong>주보 관리</strong></Link><span>선한목자 젊은이교회</span><Link to="/" title="공개 주보"><Eye size={19} /></Link></div><nav className="admin-mobile-nav" aria-label="관리자 메뉴"><Link className={!path.includes('site-info') ? 'active' : ''} to="/admin">주보 목록</Link><Link className={path.includes('site-info') ? 'active' : ''} to="/admin/site-info">교회 안내</Link><button onClick={signOut}>로그아웃</button></nav>
-      {path.includes('site-info') ? <SiteInfoEditor /> : path.startsWith('/admin/bulletins/') ? <BulletinEditor key={path} id={path.split('/').at(-1)!} /> : <BulletinIndex />}
+  const isRetreat = path === '/admin' || path === '/admin/' || path === '/admin/retreats';
+  const menu = [
+    { to: '/admin/retreats', label: '동계수련회 접수', Icon: Snowflake, active: isRetreat },
+    { to: '/admin/users', label: '회원 관리', Icon: UsersRound, active: path === '/admin/users' },
+    { to: '/admin/bulletins', label: '주보 목록', Icon: CalendarDays, active: path.startsWith('/admin/bulletins') },
+    { to: '/admin/site-info', label: '교회 안내', Icon: Settings2, active: path === '/admin/site-info' },
+  ];
+  return <div className="admin-shell itda-admin-shell"><aside className="admin-sidebar"><Link to="/admin" className="admin-brand"><span><Snowflake size={20} /></span><div><strong>잇다 어드민</strong><small>선한목자 젊은이교회</small></div></Link><nav aria-label="관리자 메뉴"><span className="admin-nav-section">ITDA MANAGEMENT</span>{menu.map(({ to, label, Icon, active }, index) => <span key={to}>{index === 2 && <span className="admin-nav-section" style={{ display: 'block', marginBottom: 10 }}>CHURCH CONTENTS</span>}<Link className={active ? 'active' : ''} aria-current={active ? 'page' : undefined} to={to}><Icon size={18} /> {label}</Link></span>)}</nav><div className="admin-sidebar-bottom"><Link to="/"><Eye size={17} /> 공개 주보 보기</Link><button disabled={authBusy} onClick={signOut}><LogOut size={17} /> {authBusy ? '로그아웃 중…' : '로그아웃'}</button></div></aside>
+    <main className="admin-main"><div className="admin-topbar"><Link to="/admin" className="admin-mobile-brand">✦ <strong>잇다 어드민</strong></Link><span>선한목자 젊은이교회 <span aria-hidden="true"> / </span> {menu.find(item => item.active)?.label || '관리자'}</span><div className="itda-topbar-label"><ShieldCheck size={15} /> 관리자</div></div><nav className="admin-mobile-nav" aria-label="모바일 관리자 메뉴">{menu.map(({ to, label, active }) => <Link key={to} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined} to={to}>{label}</Link>)}<button disabled={authBusy} onClick={signOut}>로그아웃</button></nav>
+      {isRetreat ? <RetreatAdminPage /> : path === '/admin/users' ? <UsersAdminPage /> : path === '/admin/site-info' ? <SiteInfoEditor /> : path.startsWith('/admin/bulletins/') ? <BulletinEditor key={path} id={path.split('/').at(-1)!} /> : path === '/admin/bulletins' ? <BulletinIndex /> : <div className="admin-page"><h1>페이지를 찾을 수 없습니다</h1><Link to="/admin">접수 관리로 돌아가기</Link></div>}
     </main></div>;
 }
 
@@ -134,9 +178,9 @@ function BulletinEditor({ id }: { id: string }) {
     } catch (e) { const message = e instanceof Error ? e.message : '이미지를 올리지 못했습니다.'; setError(message); showToast(message, 'error'); }
     finally { setUploading(false); }
   }
-  if (!form || !bulletin || !siteInfo) return <div className="admin-page"><Link to="/admin" className="back-link"><ArrowLeft size={16} /> 주보 목록</Link><div className="admin-empty">{error || '주보를 불러오는 중입니다.'}</div></div>;
+  if (!form || !bulletin || !siteInfo) return <div className="admin-page"><Link to="/admin/bulletins" className="back-link"><ArrowLeft size={16} /> 주보 목록</Link><div className="admin-empty">{error || '주보를 불러오는 중입니다.'}</div></div>;
   const previewBulletin: Bulletin = { ...bulletin, ...form, cover: form.coverMediaId && bulletin.cover ? { ...bulletin.cover, altText: form.coverAltText } : null };
-  return <div className="admin-page bulletin-editor-page"><div className="editor-heading"><Link to="/admin" className="back-link"><ArrowLeft size={16} /> 주보 목록</Link><div className="admin-page-heading"><div><span className="eyebrow dark">BULLETIN EDITOR</span><h1>{bulletin.status === 'published' ? '주보 수정' : '주보 작성'}</h1><p>내용을 저장한 뒤 모바일 미리보기에서 확인하고 발행하세요.</p></div><span className={`status-chip ${bulletin.status}`}>{bulletin.status === 'published' ? '발행됨' : '초안'}</span></div></div>
+  return <div className="admin-page bulletin-editor-page"><div className="editor-heading"><Link to="/admin/bulletins" className="back-link"><ArrowLeft size={16} /> 주보 목록</Link><div className="admin-page-heading"><div><span className="eyebrow dark">BULLETIN EDITOR</span><h1>{bulletin.status === 'published' ? '주보 수정' : '주보 작성'}</h1><p>내용을 저장한 뒤 모바일 미리보기에서 확인하고 발행하세요.</p></div><span className={`status-chip ${bulletin.status}`}>{bulletin.status === 'published' ? '발행됨' : '초안'}</span></div></div>
     <ErrorNote text={error} />{notice && <div className="form-notice" role="status">{notice}</div>}
     <div className="editor-grid"><div className="editor-column"><section className="editor-card"><div className="editor-card-head"><span className="editor-card-number">01</span><div><h2>표지</h2><p>이번 주 예배의 첫 화면입니다.</p></div></div><div className="field-grid"><label className="field">예배 날짜<input type="date" value={form.serviceDate} disabled={bulletin.status === 'published'} onChange={(e) => update({ serviceDate: e.target.value })} /></label><label className="field">이번 주 주제<input value={form.theme} maxLength={160} onChange={(e) => update({ theme: e.target.value })} placeholder="예: 함께 걷는 믿음" /></label></div>
       <div className="upload-box"><ImagePlus size={22} /><div><strong>대표 이미지</strong><p>선택 사항 · JPG, PNG, WebP · 원본 20MB 이하 · 긴 변 최대 1,920px, 512KB 이하로 자동 압축</p></div></div>

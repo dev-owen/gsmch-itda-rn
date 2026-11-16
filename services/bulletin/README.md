@@ -1,6 +1,6 @@
 # 선한목자 젊은이교회 모바일 주보
 
-React + Vite 공개·관리자 웹, Hono + Better Auth Workers API, PostgreSQL, Cloudflare R2로 구성한 모바일 주보 프로토타입입니다. 공개 주소 `/`는 현재 발행본을 보여 주고, `/archive`와 `/bulletins/YYYY-MM-DD`에서 지난 발행본을 볼 수 있습니다. 관리자 화면은 `/admin`입니다.
+React + Vite 공개·관리자 웹, Hono + Better Auth Workers API, PostgreSQL, Cloudflare R2로 구성한 모바일 주보 프로토타입입니다. 공개 주소 `/`는 현재 발행본을 보여 주고, `/archive`와 `/bulletins/YYYY-MM-DD`에서 지난 발행본을 볼 수 있습니다. 잇다 관리자 화면은 `/admin`이며 수련회 접수·회원 관리와 기존 주보 관리(`/admin/bulletins`)를 제공합니다. [관리자 웹 안내](docs/itda-admin.md)
 
 ## 구현 범위
 

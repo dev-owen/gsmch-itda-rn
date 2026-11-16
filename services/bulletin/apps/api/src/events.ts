@@ -5,6 +5,7 @@ import type { PoolClient } from 'pg';
 import type { AppEnv } from './types.js';
 import { transaction } from './db.js';
 import { getMember, requireAdmin, type AppMember } from './event-users.js';
+import { adminMemberSelect, adminMemberView, findAdminMember, updateAdminMemberProfile, type AdminMemberRow } from './admin-members.js';
 import { adminEvent, attendanceInput, cancelRegistration, cancellationInput, correctParticipantName, ensureActiveMember,
   eventInput, EventError, lockMembers, memberEvent, memberView, nameInput, publicEvent, registerForEvent,
   registrationInput, registrationView, setAttendance, versionInput, type EventInput, type EventRow,
@@ -126,13 +127,44 @@ eventRoutes.get('/admin/users', async (c) => {
   await requireAdmin(c);
   const { limit, cursor } = page(c);
   if (cursor) z.string().min(1).max(200).parse(cursor);
-  const search = z.string().max(100).parse(c.req.query('search') || '');
-  const result = await c.get('pool').query<MemberRow>(`SELECT * FROM app_users
-    WHERE status='active' AND ($1='' OR name ILIKE '%' || $1 || '%')
-      AND ($2::text IS NULL OR (name,user_id) > (SELECT name,user_id FROM app_users WHERE user_id=$2))
-    ORDER BY name,user_id LIMIT $3`, [search, cursor, limit + 1]);
+  const search = z.string().trim().max(100).parse(c.req.query('search') || '');
+  const verification = c.req.query('verification') ? z.enum(['verified', 'pending', 'unverified']).parse(c.req.query('verification')) : null;
+  const phoneSearch = search.replace(/[\s().-]/g, '');
+  const result = await c.get('pool').query<AdminMemberRow>(`${adminMemberSelect}
+    WHERE m.status='active' AND ($1='' OR m.name ILIKE '%' || $1 || '%' OR u.email ILIKE '%' || $1 || '%'
+      OR ($4<>'' AND m.phone_number ILIKE '%' || $4 || '%'))
+      AND ($2::text IS NULL OR (m.name,m.user_id) > (SELECT name,user_id FROM app_users WHERE user_id=$2))
+      AND ($5::text IS NULL OR ($5='verified' AND m.is_member_verified)
+        OR ($5='pending' AND NOT m.is_member_verified AND m.verification_requested_at IS NOT NULL)
+        OR ($5='unverified' AND NOT m.is_member_verified AND m.verification_requested_at IS NULL))
+    ORDER BY m.name,m.user_id LIMIT $3`, [search, cursor, limit + 1, phoneSearch, verification]);
   const rows = result.rows.slice(0, limit);
-  return c.json({ items: rows.map(memberView), nextCursor: result.rows.length > limit ? rows.at(-1)!.user_id : null }, 200, noStore);
+  return c.json({ items: rows.map(adminMemberView), nextCursor: result.rows.length > limit ? rows.at(-1)!.user_id : null }, 200, noStore);
+});
+eventRoutes.get('/admin/users/:id', async (c) => {
+  await requireAdmin(c);
+  const id = z.string().min(1).max(200).parse(c.req.param('id'));
+  return c.json({ user: adminMemberView(await findAdminMember(c.get('pool'), id)) }, 200, noStore);
+});
+eventRoutes.get('/admin/users/:id/registrations', async (c) => {
+  await requireAdmin(c);
+  const id = z.string().min(1).max(200).parse(c.req.param('id'));
+  await findAdminMember(c.get('pool'), id);
+  const { limit, cursor } = page(c);
+  if (cursor) uuid.parse(cursor);
+  const result = await c.get('pool').query<RegistrationRow & { event: EventRow }>(`SELECT r.*,to_jsonb(e) AS event
+    FROM registrations r JOIN events e ON e.id=r.event_id WHERE r.user_id=$1
+      AND ($2::uuid IS NULL OR (r.created_at,r.id) < (SELECT created_at,id FROM registrations WHERE id=$2 AND user_id=$1))
+    ORDER BY r.created_at DESC,r.id DESC LIMIT $3`, [id, cursor, limit + 1]);
+  const rows = result.rows.slice(0, limit);
+  return c.json({ items: rows.map(row => ({ ...registrationView(row, row.event), userId: row.user_id, checkedBy: row.checked_by })),
+    nextCursor: result.rows.length > limit ? rows.at(-1)!.id : null }, 200, noStore);
+});
+eventRoutes.patch('/admin/users/:id/profile', async (c) => {
+  const member = await requireAdmin(c);
+  const id = z.string().min(1).max(200).parse(c.req.param('id'));
+  const row = await updateAdminMemberProfile(c.get('pool'), member, id, await c.req.json());
+  return c.json({ user: adminMemberView(row) }, 200, noStore);
 });
 async function verifyMember(c: Parameters<typeof requireAdmin>[0]) {
   const member = await requireAdmin(c);

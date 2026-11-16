@@ -6,7 +6,7 @@
     "dev": "XDG_CONFIG_HOME=../../.wrangler-config WRANGLER_SEND_METRICS=false wrangler dev",
     "build": "XDG_CONFIG_HOME=../../.wrangler-config WRANGLER_SEND_METRICS=false WRANGLER_WRITE_LOGS=false wrangler deploy --dry-run --outdir dist",
     "typecheck": "tsc --noEmit",
-    "test": "tsc --noEmit false --outDir .test-dist && node --test tests/*.test.mjs",
+    "test": "tsc --noEmit false --outDir .test-dist && node --test --test-concurrency=1 tests/*.test.mjs",
     "dev:itda": "XDG_CONFIG_HOME=../../.wrangler-config WRANGLER_SEND_METRICS=false wrangler dev --config wrangler.itda-local.jsonc --port 8787",
     "build:itda": "XDG_CONFIG_HOME=../../.wrangler-config WRANGLER_SEND_METRICS=false WRANGLER_WRITE_LOGS=false wrangler deploy --config wrangler.itda.example.jsonc --dry-run --outdir dist-itda",
     "test:compile": "tsc --noEmit false --outDir .test-dist"
