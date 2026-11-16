@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 
 import { layout, palette } from '@/theme/tokens';
 import { AppIcon, type IconName } from '@/components/app-icon';
+import { BrandLoading } from '@/components/launch-screen';
 
 export function Screen({ children, title, eyebrow, subtitle, back = false, right, refreshing, onRefresh }: {
   children: ReactNode; title?: string; eyebrow?: string; subtitle?: string;
@@ -61,7 +62,7 @@ export function Field({ label, help, ...props }: TextInputProps & { label: strin
   return <View style={styles.fieldWrap}><View style={styles.fieldLabel}><Text style={styles.label}>{label}</Text>{props.editable === false && <AppIcon name="lock" size={14} color={palette.muted} />}</View><TextInput accessibilityLabel={label} placeholderTextColor="#818C7C" {...props} style={[styles.input, props.multiline && styles.multiline, props.editable === false && styles.lockedInput, props.style]} />{help && <Text style={styles.help}>{help}</Text>}</View>;
 }
 export function Notice({ children, danger = false }: { children: ReactNode; danger?: boolean }) { return <View accessibilityRole={danger ? 'alert' : undefined} style={[styles.notice, danger && styles.dangerNotice]}><View style={[styles.noticeDot, danger && { backgroundColor: palette.danger }]} /><Text style={[styles.noticeText, danger && { color: palette.danger }]}>{children}</Text></View>; }
-export function LoadingState({ label = '잠시만 기다려 주세요' }: { label?: string }) { return <View style={styles.state}><ActivityIndicator size="large" color={palette.forest} /><Text style={styles.stateText}>{label}</Text></View>; }
+export function LoadingState({ label = '잠시만 기다려 주세요' }: { label?: string }) { return <BrandLoading label={label} />; }
 export function EmptyState({ title, description, action }: { title: string; description: string; action?: ReactNode }) { return <Card style={styles.state}><View style={styles.stateMark}><AppIcon name="calendar" size={27} /></View><Text style={styles.stateTitle}>{title}</Text><Text style={styles.stateText}>{description}</Text>{action}</Card>; }
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) { return <Card><Notice danger>{message}</Notice>{onRetry && <Button label="다시 불러오기" variant="secondary" onPress={onRetry} />}</Card>; }
 export function Row({ children, between = false, style }: { children: ReactNode; between?: boolean; style?: StyleProp<ViewStyle> }) { return <View style={[styles.row, between && { justifyContent: 'space-between' }, style]}>{children}</View>; }

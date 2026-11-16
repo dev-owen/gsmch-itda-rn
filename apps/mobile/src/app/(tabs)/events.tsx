@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { AppText as Text, AppTextInput as TextInput } from '@/components/app-text';
 import { AppIcon } from '@/components/app-icon';
+import { useLaunchContentReady } from '@/components/app-launch';
 import { api } from '@/services/api';
 import { useSession } from '@/services/session';
 import { useResource } from '@/hooks/use-resource';
@@ -18,6 +19,7 @@ export default function EventsScreen() {
   const { user } = useSession();
   const scope = `${user?.id || 'public'}:${user?.isMemberVerified}:${user?.role}:${user?.status}`;
   const resource = useResource(useCallback(() => api.listEvents({ period: 'all' }), []), scope);
+  useLaunchContentReady(scope, !resource.loading);
   const now = useNow();
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('전체');
