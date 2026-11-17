@@ -82,7 +82,7 @@ export function EventDeck({ events, now }: { events: EventItem[]; now: number })
 
   return <View style={styles.section}>
     <View style={styles.heading}>
-      <View style={styles.headingCopy}><Text accessibilityRole="header" style={styles.title}>한 장씩 만나는 소식</Text><Text style={styles.subtitle}>{hasNext ? '왼쪽으로도, 오른쪽으로도 넘겨보세요' : '새로운 소식을 만나보세요'}</Text></View>
+      <View style={styles.headingCopy}><Text accessibilityRole="header" style={styles.title}>다가오는 만남</Text><Text style={styles.subtitle}>{hasNext ? '한 장씩, 반가운 소식을 만나보세요' : '새로운 소식을 만나보세요'}</Text></View>
       <View style={styles.counter}><Text accessibilityLiveRegion="polite" style={styles.counterText}>{currentIndex + 1} / {events.length}</Text></View>
     </View>
     <View style={styles.stack} onLayout={event => setWidth(event.nativeEvent.layout.width)}>
@@ -105,10 +105,10 @@ export function EventDeck({ events, now }: { events: EventItem[]; now: number })
 const styles = StyleSheet.create({
   section: { gap: 16 },
   heading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  headingCopy: { flex: 1, gap: 4 }, title: { color: palette.ink, fontSize: 18, lineHeight: 28, fontWeight: '700', letterSpacing: -0.4 }, subtitle: { color: palette.muted, fontSize: 11, lineHeight: 19 },
+  headingCopy: { flex: 1, gap: 4 }, title: { color: palette.ink, fontSize: 18, lineHeight: 28, fontWeight: '700', letterSpacing: -0.4 }, subtitle: { color: palette.muted, fontSize: 12, lineHeight: 20 },
   counter: { backgroundColor: palette.stone, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 15 }, counterText: { color: palette.forest, fontSize: 12, lineHeight: 19, fontWeight: '600', fontVariant: ['tabular-nums'] },
   stack: { paddingBottom: 16 }, activeCard: { zIndex: 2 }, webGesture: { touchAction: 'pan-y', userSelect: 'none' },
-  backCard: { position: 'absolute', top: 24, bottom: 0, left: 20, right: 20, borderRadius: 28, backgroundColor: '#D8E0CC' },
+  backCard: { position: 'absolute', top: 24, bottom: 0, left: 20, right: 20, borderRadius: 28, backgroundColor: palette.peach },
   nextCard: { position: 'absolute', top: 9, left: 9, right: 9, bottom: 8, borderRadius: 28, overflow: 'hidden', opacity: 0.7 },
-  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20 }, directionButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, alignItems: 'center', justifyContent: 'center' }, controlCopy: { gap: 7, alignItems: 'center' }, dots: { flexDirection: 'row', alignItems: 'center', gap: 5 }, dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: palette.border }, activeDot: { width: 17, backgroundColor: palette.forest }, controlHint: { color: palette.muted, fontSize: 10, lineHeight: 17 }, disabled: { opacity: 0.35 }, pressed: { opacity: 0.65 },
+  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20 }, directionButton: { flexShrink: 0, width: 44, height: 44, borderRadius: 22, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, alignItems: 'center', justifyContent: 'center' }, controlCopy: { flex: 1, minWidth: 0, gap: 7, alignItems: 'center' }, dots: { flexDirection: 'row', alignItems: 'center', gap: 5 }, dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: palette.border }, activeDot: { width: 17, backgroundColor: palette.forest }, controlHint: { textAlign: 'center', color: palette.muted, fontSize: 12, lineHeight: 20 }, disabled: { opacity: 0.35 }, pressed: { opacity: 0.65 },
 });

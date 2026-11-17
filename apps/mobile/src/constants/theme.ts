@@ -6,14 +6,15 @@
 import '@/global.css';
 
 import { Platform } from 'react-native';
+import { palette } from '@/theme/tokens';
 
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    text: palette.ink,
+    background: palette.background,
+    backgroundElement: palette.stone,
+    backgroundSelected: palette.sage,
+    textSecondary: palette.muted,
   },
   dark: {
     text: '#ffffff',
@@ -44,7 +45,7 @@ export const Fonts = Platform.select({
     mono: 'monospace',
   },
   web: {
-    sans: 'var(--font-display)',
+    sans: 'var(--font-body)',
     serif: 'var(--font-serif)',
     rounded: 'var(--font-rounded)',
     mono: 'var(--font-mono)',

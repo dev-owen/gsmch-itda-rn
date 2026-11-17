@@ -33,33 +33,34 @@ export function CompactEventCard({ event, now }: { event: EventItem; now: number
     onPress={() => router.push({ pathname: '/events/[id]', params: { id: event.id } })}
     style={({ pressed }) => [styles.card, pressed && styles.pressed]}
   >
-    <View style={styles.dateTile} accessible={false}>
+    <View style={[styles.dateTile, event.category === 'recruitment' && styles.peachTile]} accessible={false}>
       <Text style={styles.month}>{date.month}</Text>
       <Text style={[styles.day, date.day === '미정' && styles.undated]}>{date.day}</Text>
     </View>
     <View style={styles.copy}>
-      <Text numberOfLines={1} style={styles.title}>{event.title}</Text>
-      <Text numberOfLines={1} style={styles.metadata}>{metadata}</Text>
+      <Text numberOfLines={2} style={styles.title}>{event.title}</Text>
+      <Text numberOfLines={2} style={styles.metadata}>{metadata}</Text>
+      <Text style={[styles.status, status.tone === 'green' && styles.available, status.tone === 'gold' && styles.scheduled, status.tone === 'red' && styles.cancelled]}>{status.label}</Text>
     </View>
     <View style={styles.trailing}>
-      <Text style={[styles.status, status.tone === 'green' && styles.available, status.tone === 'gold' && styles.scheduled, status.tone === 'red' && styles.cancelled]}>{status.label}</Text>
       <AppIcon name="chevron-right" size={13} color={palette.muted} />
     </View>
   </Pressable>;
 }
 
 const styles = StyleSheet.create({
-  card: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 62, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+  card: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 100, paddingVertical: 16, paddingHorizontal: 14, borderRadius: 22, backgroundColor: palette.surface },
   pressed: { opacity: 0.75 },
-  dateTile: { minWidth: 34, alignItems: 'center', paddingRight: 9, borderRightWidth: 1, borderRightColor: palette.border },
-  month: { color: palette.muted, fontSize: 9, lineHeight: 13 },
-  day: { color: palette.forest, fontSize: 20, lineHeight: 25, fontWeight: '700' },
-  undated: { fontSize: 12 },
-  copy: { flex: 1, minWidth: 0, gap: 3 },
-  title: { color: palette.ink, fontSize: 13, lineHeight: 20, fontWeight: '700', letterSpacing: -0.2 },
-  metadata: { color: palette.muted, fontSize: 10, lineHeight: 16 },
-  trailing: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0 },
-  status: { color: palette.muted, fontSize: 9, lineHeight: 16 },
+  dateTile: { width: 52, minHeight: 64, alignItems: 'center', justifyContent: 'center', paddingVertical: 8, borderRadius: 16, backgroundColor: palette.sageLight },
+  peachTile: { backgroundColor: palette.accentLight },
+  month: { color: palette.forest, fontSize: 12, lineHeight: 18 },
+  day: { color: palette.forestDark, fontSize: 25, lineHeight: 31, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  undated: { fontSize: 14 },
+  copy: { flex: 1, minWidth: 0, gap: 5 },
+  title: { color: palette.ink, fontSize: 16, lineHeight: 24, fontWeight: '700', letterSpacing: -0.3 },
+  metadata: { color: palette.muted, fontSize: 12, lineHeight: 20 },
+  trailing: { alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  status: { alignSelf: 'flex-start', color: palette.muted, fontSize: 12, lineHeight: 20 },
   available: { color: palette.forest, fontWeight: '600' },
   scheduled: { color: palette.gold },
   cancelled: { color: palette.danger },
